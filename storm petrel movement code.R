@@ -13,13 +13,15 @@ library(maps)       # Provides functions that let us plot the maps
 library(mapdata)    # Contains the hi-resolution points that mark out the countries
 library(move)
 library(RNCEP)
+library(circular)
 
 setwd("C:\\Users\\akane\\Desktop\\Science\\Manuscripts\\Storm Petrels\\Tracking Data")
-data <- read.table("allStormies.csv", header=T,sep=",")
+data <- read.table("combinedData.csv", header=T,sep=",")
 head(data)
-data<-data[,c("latitude","longitude","DateTime", "ID","bathymetry")]
-names(data)[names(data) == 'longitude'] <- 'lon'
-names(data)[names(data) == 'latitude'] <- 'lat'
+data<-data[,c("Latitude","Longitude","DateTime", "BirdID","bathymetry","location")]
+names(data)[names(data) == 'Longitude'] <- 'lon'
+names(data)[names(data) == 'Latitude'] <- 'lat'
+names(data)[names(data) == 'BirdID'] <- 'ID'
 # the time stamp can be a pain - set the column in excel using dd-mm-yy hh:mm:ss
 data$DateTime<-as.POSIXct(data$DateTime, format= "%d-%m-%y %H:%M", tz = "UTC")
 head(data)
@@ -32,43 +34,60 @@ length(data$lat)
 # plot the data
 #--------------------------------------------------------------------------------
 # specify the colours
-palette(c("grey","orange","blue","red","yellow","black","cyan","pink"))
+# palette(c("grey","orange","blue","red","yellow","black","cyan","pink"))
+irishdata <- data[data$location=="ireland" , ] 
+irishdata<-droplevels(irishdata)
 
+scottishdata <- data[data$location=="scotland" , ]
+scottishdata<-droplevels(scottishdata)
+
+# Irish birds 
 map('worldHires', c('Ireland', 'UK'),   
     xlim=c(-16,-5.5), 
     ylim=c(51,56))	
-points(data$lon,data$lat,col=data$ID,pch=16, cex=0.5, map.axes(cex.axis=0.8),title("Storm Petrels"),
+points(irishdata$lon,irishdata$lat,col=irishdata$ID,pch=16, cex=0.5, map.axes(cex.axis=0.8),title("Storm Petrels"),
        xlab="longitude",ylab="latitude")
 
 # remove erroneous point 
-data<-data[data$lat < 54.5, ]
+irishdata<-irishdata[irishdata$lat < 54.5, ]
 
-# replot the data
+# replot the Irish data
 map('worldHires', c('Ireland', 'UK'),   
     xlim=c(-16,-5.5), 
     ylim=c(51,56))	
-points(data$lon,data$lat,col=data$ID,pch=16, cex=0.5, map.axes(cex.axis=0.8),title("Storm Petrels"),
+points(irishdata$lon,irishdata$lat,col=irishdata$ID,pch=16, cex=0.5, map.axes(cex.axis=0.8),title("Storm Petrels"),
        xlab="longitude",ylab="latitude")
 
-# alternatively, plot each of the bird tracks on a separate map
-mapFunc <- function(dat) {
-  map('worldHires', c('Ireland', 'UK'), xlim=c(-16,-5.5), ylim=c(51,56))    
-  points(dat$lon, dat$lat,pch=16, cex=0.5, map.axes(cex.axis=0.8),
-         xlab="longitude",ylab="latitude")
-}
+# Scottish birds
+map('worldHires', c('UK'),   
+    xlim=c(-8,6), 
+    ylim=c(56,62))	
+points(scottishdata$lon,scottishdata$lat,col=scottishdata$ID,pch=16, cex=0.5, map.axes(cex.axis=0.8),title("Storm Petrels"),
+       xlab="longitude",ylab="latitude")
 
-op <- par(mfrow = c(2,4),
-          oma = c(5,4,0,0) + 0.1,
-          mar = c(0,0,1,1) + 0.1)
+# stick with Irish data only for the time being 
+data <- irishdata
+data<-droplevels(data)
+
+# alternatively, plot each of the bird tracks on a separate map
+#mapFunc <- function(dat) {
+#  map('worldHires', c('Ireland', 'UK'), xlim=c(-16,-5.5), ylim=c(51,56))    
+#  points(irishdata$lon,irishdata$lat,pch=16, cex=0.5, map.axes(cex.axis=0.8),title("Storm Petrels"),
+#         xlab="longitude",ylab="latitude")
+#}
+
+#op <- par(mfrow = c(2,4),
+#          oma = c(5,4,0,0) + 0.1,
+#          mar = c(0,0,1,1) + 0.1)
 #birdID<-as.factor(data$ID)
-sapply(split(data[1:2], data$ID), mapFunc)
+#sapply(split(irishdata[1:2], irishdata$ID), mapFunc)
 
 # plot the tracking data with bathymetry data
-par(mfrow = c(1,1))
-NCEP.vis.points(wx=data$bathymetry, lats=data$lat, lons=data$lon,cols=rev(heat.colors(64)),
-                  title.args=list(main="Storm Petrels with Bathymetry Data"), points.args=list(cex=1),
-                    image.plot.args=list(legend.args=list(text="m AMSL",adj=0, padj=-2, cex=1.15)),
-                      map.args=list(xlim=c(-16,-5.5), ylim=c(51,56)))
+#par(mfrow = c(1,1))
+#NCEP.vis.points(wx=data$bathymetry, lats=data$lat, lons=data$lon,cols=rev(heat.colors(64)),
+#                  title.args=list(main="Storm Petrels with Bathymetry Data"), points.args=list(cex=1),
+#                    image.plot.args=list(legend.args=list(text="m AMSL",adj=0, padj=-2, cex=1.15)),
+#                      map.args=list(xlim=c(-16,-5.5), ylim=c(51,56)))
 
 #--------------------------------------------------------------------------------
 # convert into a 'move' type file 
@@ -107,8 +126,10 @@ which(df$tdiff > 1000)
 # -----------------------------------------------------------------------------
 # Currently this does not work for all tracks being interpolated 
 # -----------------------------------------------------------------------------
-idx = c("900","902","908","910","906","906B","909","909B")
+# idx = c("900","902","908","910","906","906B","909","909B")
+idx = c("900","902","908","910")
 dataSample2<-data[data$ID %in% idx,] 
+dataSample2<-droplevels(dataSample2)
 head(dataSample2)
 tail(dataSample2)
 
