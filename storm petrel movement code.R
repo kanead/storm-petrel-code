@@ -30,6 +30,15 @@ length(data$lat)
 data<-data[ ! data$lat %in% 0, ]
 length(data$lat)
 
+
+#data$lat[data$location=="ireland"] < 54.5
+#y <- which(data$lat[data$location=="ireland"] < 54.5)
+#head(y)
+#z<-subset(data, data$location=="ireland" & data$lat < 54.5)
+#length(z$lat)
+#head(z)
+#data<-data[data$lat[data$location=="ireland"] < 54.5, ]
+#length(data$lat)
 #--------------------------------------------------------------------------------
 # plot the data
 #--------------------------------------------------------------------------------
@@ -66,21 +75,39 @@ points(scottishdata$lon,scottishdata$lat,col=scottishdata$ID,pch=16, cex=0.5, ma
        xlab="longitude",ylab="latitude")
 
 # stick with Irish data only for the time being 
-data <- irishdata
-data<-droplevels(data)
+# data <- irishdata
+# data<-droplevels(data)
 
 # alternatively, plot each of the bird tracks on a separate map
-#mapFunc <- function(dat) {
-#  map('worldHires', c('Ireland', 'UK'), xlim=c(-16,-5.5), ylim=c(51,56))    
-#  points(irishdata$lon,irishdata$lat,pch=16, cex=0.5, map.axes(cex.axis=0.8),title("Storm Petrels"),
-#         xlab="longitude",ylab="latitude")
-#}
 
-#op <- par(mfrow = c(2,4),
-#          oma = c(5,4,0,0) + 0.1,
-#          mar = c(0,0,1,1) + 0.1)
-#birdID<-as.factor(data$ID)
-#sapply(split(irishdata[1:2], irishdata$ID), mapFunc)
+# method 1
+
+coplot(lat ~ lon | ID, data = irishdata,pch=16)
+
+# or 
+
+# method 2
+
+op <- par(mfrow = c(2,3),
+          oma = c(5,4,0,0) + 0.1,
+          mar = c(0,0,1,1) + 0.1)
+d_ply(irishdata, "ID", transform, plot(lat~lon, main = unique(ID), type = "o",pch=16))
+
+# or 
+
+# method 3
+
+mapFunc <- function(data) {
+  map('worldHires', c('Ireland', 'UK'), xlim=c(-16,-5.5), ylim=c(51,56))    
+  points(data$lon,data$lat,pch=16, cex=.5, map.axes(cex.axis=0.8),title("Storm Petrels"),
+         xlab="longitude",ylab="latitude")
+}
+
+op <- par(mfrow = c(2,4),
+          oma = c(5,4,0,0) + 0.1,
+          mar = c(0,0,1,1) + 0.1)
+
+sapply(split(irishdata[2:1],irishdata$ID),mapFunc)
 
 # plot the tracking data with bathymetry data
 #par(mfrow = c(1,1))
@@ -89,6 +116,12 @@ data<-droplevels(data)
 #                    image.plot.args=list(legend.args=list(text="m AMSL",adj=0, padj=-2, cex=1.15)),
 #                      map.args=list(xlim=c(-16,-5.5), ylim=c(51,56)))
 
+
+# combine data back together again
+data<-rbind(scottishdata,irishdata)
+head(data)
+tail(data)
+length(data$lat)
 #--------------------------------------------------------------------------------
 # convert into a 'move' type file 
 #--------------------------------------------------------------------------------
@@ -127,7 +160,9 @@ which(df$tdiff > 1000)
 # Currently this does not work for all tracks being interpolated 
 # -----------------------------------------------------------------------------
 # idx = c("900","902","908","910","906","906B","909","909B")
-idx = c("900","902","908","910")
+#idx = c("900","902","908","910")
+idx = "908"
+
 dataSample2<-data[data$ID %in% idx,] 
 dataSample2<-droplevels(dataSample2)
 head(dataSample2)
@@ -147,9 +182,31 @@ names(df)[names(df) == 'y'] <- 'lat'
 head(df)
 tail(df)
 
+# drop the lat and long NAs
+df<-df[!with(df,is.na(lat)| is.na(lon)),]
+
+# can export this dataframe and use it to get remote sensing data
+write.table(df, file = "DataInterp.csv", row.names=F, sep=",")
+
+# read dataframe back in with remote sensing data appended 
+df<-read.csv("Storm Petrel 30 Minute Interpolation-7877473479535615074.csv",header=T,sep=",")
+
+# select one bird to test
+idx = "908"
+df<-df[df$tag.local.identifier %in% idx,] 
+
+# remove last few rows where there are NAs for Chlorophyll
+df<-head(df,-6)
+
+# rename columns
+names(df)[names(df) == 'MODIS.Ocean.Aqua.OceanColor.4km.8d.Chlorophyll.A'] <- 'chloro'
+names(df)[names(df) == 'location.long'] <- 'lon'
+names(df)[names(df) == 'location.lat'] <- 'lat'
+
 # prepare data with moveHMM
-trackData2 <- df[,c(1,2,11)]
-colnames(trackData2)[3] <- c("ID")
+trackData2 <- df[,c(4,5,11)]
+head(trackData2)
+#colnames(trackData2)[3] <- c("ID")
 data3 <- prepData(trackData2,type="LL",coordNames=c("lon","lat"))
 plot(data3,compact=T)
 
@@ -162,11 +219,30 @@ angleMean0 <- c(pi,0) # angle mean
 kappa0 <- c(1,1) # angle concentration
 anglePar0 <- c(angleMean0,kappa0)
 
+# alternative parameters
+mu0 <- c(1,4) # step mean (two parameters: one for each state)
+sigma0 <- c(0.5,1) # step SD
+stepPar0 <- c(mu0,sigma0)
+angleMean0 <- c(pi,0) # angle mean
+kappa0 <- c(0.7,1.5) # angle concentration
+anglePar0 <- c(angleMean0,kappa0)
+
 m1 <- fitHMM(data=data3,nbStates=2,stepPar0=stepPar0,anglePar0=anglePar0,
              formula=~1) # no covariate
 
+m2 <- fitHMM(data=data3,nbStates=2,stepPar0=stepPar0,anglePar0=anglePar0,
+             formula=~chloro) # covariate 'chlorophyll'
+
+## Model selection using the AIC
 m1
 plot(m1)
+
+m2
+plot(m2)
+
+
+print(AIC(m1,m2))
+
 
 states <- viterbi(m1)
 states[1:25]
@@ -206,12 +282,12 @@ plotPR(m1)
 
 #apply two state HMM
 ## initial parameters for gamma and von Mises distributions
-#mu0 <- c(1,4) # step mean (two parameters: one for each state)
-#sigma0 <- c(0.5,1) # step SD
-#stepPar0 <- c(mu0,sigma0)
-#angleMean0 <- c(pi,0) # angle mean
-#kappa0 <- c(0.7,1.5) # angle concentration
-#anglePar0 <- c(angleMean0,kappa0)
+mu0 <- c(1,4) # step mean (two parameters: one for each state)
+sigma0 <- c(0.5,1) # step SD
+stepPar0 <- c(mu0,sigma0)
+angleMean0 <- c(pi,0) # angle mean
+kappa0 <- c(0.7,1.5) # angle concentration
+anglePar0 <- c(angleMean0,kappa0)
 
 #m1 <- fitHMM(data=data3,nbStates=2,stepPar0=stepPar0,anglePar0=anglePar0,
 #             formula=~1) # no covariate
@@ -258,23 +334,23 @@ plotPR(m1)
 
 #apply two state HMM
 ## initial parameters for gamma and von Mises distributions
-# mu0 <- c(0.1,1) # step mean (two parameters: one for each state)
-# sigma0 <- c(0.1,1) # step SD
-# stepPar0 <- c(mu0,sigma0)
-# angleMean0 <- c(pi,0) # angle mean
-# kappa0 <- c(1,1) # angle concentration
-# anglePar0 <- c(angleMean0,kappa0)
+ mu0 <- c(0.1,1) # step mean (two parameters: one for each state)
+ sigma0 <- c(0.1,1) # step SD
+ stepPar0 <- c(mu0,sigma0)
+ angleMean0 <- c(pi,0) # angle mean
+ kappa0 <- c(1,1) # angle concentration
+ anglePar0 <- c(angleMean0,kappa0)
 
-# m1 <- fitHMM(data=data3,nbStates=2,stepPar0=stepPar0,anglePar0=anglePar0,
-#             formula=~1) # no covariate
-# m2 <- fitHMM(data=data3,nbStates=2,stepPar0=stepPar0,anglePar0=anglePar0,
-#             formula=~bathymetry) # covariate 'bathymetry'
+ m1 <- fitHMM(data=data3,nbStates=2,stepPar0=stepPar0,anglePar0=anglePar0,
+             formula=~1) # no covariate
+ m2 <- fitHMM(data=data3,nbStates=2,stepPar0=stepPar0,anglePar0=anglePar0,
+             formula=~chloro) # covariate 'chlorophyll'
 
 ## Model selection using the AIC
 # print(AIC(m1,m2))
 
-# m1
-# plot(m1)
-# m2
-# plot(m2)
+ m1
+ plot(m1)
+ m2
+ plot(m2)
 
