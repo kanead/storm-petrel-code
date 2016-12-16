@@ -109,6 +109,25 @@ op <- par(mfrow = c(2,4),
 
 sapply(split(irishdata[2:1],irishdata$ID),mapFunc)
 
+# or
+
+# method 4
+
+library(ggmap)
+library(RColorBrewer)
+df<-irishdata
+#locate the center of the map
+center<-c(mean(range(df$lon)), mean(range(df$lat)))
+#in this case zoom is set by trial and error
+mymap<-qmap(location = center, zoom = 2, maptype= "terrain")
+mymap<-mymap + geom_point(aes(x=lon, y=lat, color=ID), data=df)
+mymap<-mymap + scale_size(range = c(2, 4)) + scale_color_brewer(palette = "Set1")
+mymap<-mymap + geom_path(aes(x=lon, y=lat), data=df) 
+
+mymap<-mymap + facet_wrap(~ID, nrow =2)
+print(mymap)
+
+
 # plot the tracking data with bathymetry data
 #par(mfrow = c(1,1))
 #NCEP.vis.points(wx=data$bathymetry, lats=data$lat, lons=data$lon,cols=rev(heat.colors(64)),
