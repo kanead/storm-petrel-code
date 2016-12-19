@@ -211,21 +211,44 @@ write.table(df, file = "DataInterp.csv", row.names=F, sep=",")
 df<-read.csv("Storm Petrel 30 Minute Interpolation-7877473479535615074.csv",header=T,sep=",")
 
 # select one bird to test
-idx = "908"
-df<-df[df$tag.local.identifier %in% idx,] 
-
+#idx = "908"
+#df<-df[df$tag.local.identifier %in% idx,] 
 # remove last few rows where there are NAs for Chlorophyll
-df<-head(df,-6)
+#df<-head(df,-6)
 
 # rename columns
 names(df)[names(df) == 'MODIS.Ocean.Aqua.OceanColor.4km.8d.Chlorophyll.A'] <- 'chloro'
 names(df)[names(df) == 'location.long'] <- 'lon'
 names(df)[names(df) == 'location.lat'] <- 'lat'
+names(df)[names(df) == 'individual.local.identifier'] <- 'ID'
 
+
+# need to remove the NAs where chlorophyll data is missing and the data that comes after it because
+# the HMM requires equi-spaced data 
+# df<-do.call(rbind,lapply(split(df, df$ID),function(x)x[cumsum(is.na(x$chloro))<1,]))
+#df <- df %>% group_by(ID) %>% filter(!is.na(cumsum(chloro)))
+#df <- as.data.frame(df)
+#write.table(trackData2, file = "Cleaned Interpolated Data.csv", row.names=F, sep=",")
+#library(data.table)
+#df<-setDT(df)[,  .SD[cumsum(is.na(chloro))<1], by= ID]
+#df <- as.data.frame(df)
+#df<-droplevels(df)
+
+df<-df[!with(df, ave(chloro, ID, FUN = function(x) cumsum(is.na(x)))),]
+
+# count the number of relocations for each bird 
+sapply(split(df$lat,df$ID),length)
+
+# drop the birds that have fewer than x relocations 
+
+df.new <- df[!(as.numeric(df$ID) %in% which(table(df$ID)<100)),]
+df.new <- droplevels(df.new)
+
+df<-df.new
 # prepare data with moveHMM
-trackData2 <- df[,c(4,5,11)]
+trackData2 <- df[,c(4,5,8,11)]
 head(trackData2)
-#colnames(trackData2)[3] <- c("ID")
+colnames(trackData2)[3] <- c("ID")
 data3 <- prepData(trackData2,type="LL",coordNames=c("lon","lat"))
 plot(data3,compact=T)
 
