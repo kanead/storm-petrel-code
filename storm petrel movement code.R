@@ -14,11 +14,13 @@ library(mapdata)    # Contains the hi-resolution points that mark out the countr
 library(move)
 library(RNCEP)
 library(circular)
+library(data.table) # for renaming tracks with big time gaps 
+
 
 setwd("C:\\Users\\akane\\Desktop\\Science\\Manuscripts\\Storm Petrels\\Tracking Data")
 data <- read.table("combinedData.csv", header=T,sep=",")
 head(data)
-data<-data[,c("Latitude","Longitude","DateTime", "BirdID","bathymetry","location")]
+data<-data[,c("Latitude","Longitude","DateTime", "BirdID","location")]
 names(data)[names(data) == 'Longitude'] <- 'lon'
 names(data)[names(data) == 'Latitude'] <- 'lat'
 names(data)[names(data) == 'BirdID'] <- 'ID'
@@ -29,8 +31,9 @@ length(data$lat)
 # remove missing data
 data<-data[ ! data$lat %in% 0, ]
 length(data$lat)
-
-
+# remove NAs
+data<-data[complete.cases(data),]
+length(data$lat)
 #data$lat[data$location=="ireland"] < 54.5
 #y <- which(data$lat[data$location=="ireland"] < 54.5)
 #head(y)
@@ -141,6 +144,44 @@ data<-rbind(scottishdata,irishdata)
 head(data)
 tail(data)
 length(data$lat)
+data<-data[complete.cases(data),]
+length(data$lat)
+
+# count the number of relocations for each bird 
+median(sapply(split(data$lat,data$ID),length))
+# drop the birds that have fewer than x relocations 
+data <- data[!(as.numeric(data$ID) %in% which(table(data$ID)<20)),]
+data <- droplevels(data)
+
+# split tracks that have big time gaps by first calculating the time difference
+setDT(data)[ , ID2 := paste0(ID, cumsum(c(0, diff(DateTime)) > 150)), by = ID]
+data<-data.frame(data)
+head(data)
+
+
+##################################################
+##################################################
+#timeCheck<-function(df) {
+#sapply(1:(nrow(df) - 1), function(i){
+#  timeDiff<- difftime(df$DateTime[i+1], df$DateTime[i], units = "mins" )
+#  return(timeDiff)
+#  })
+#}
+# preserve order of levels 
+#data$ID <- factor(data$ID, levels=unique(data$ID))
+#timeDiffData<-sapply(split(data, data$ID), timeCheck)
+#unlistTimes<-data.frame(unlist(timeDiffData))
+#data$timeDiffs<-unlistTimes
+##################################################
+##################################################
+
+
+
+
+
+
+
+
 #--------------------------------------------------------------------------------
 # convert into a 'move' type file 
 #--------------------------------------------------------------------------------
@@ -180,15 +221,15 @@ which(df$tdiff > 1000)
 # -----------------------------------------------------------------------------
 # idx = c("900","902","908","910","906","906B","909","909B")
 #idx = c("900","902","908","910")
-idx = "908"
+#idx = "908"
 
-dataSample2<-data[data$ID %in% idx,] 
+dataSample2<-data#[data$ID %in% idx,] 
 dataSample2<-droplevels(dataSample2)
 head(dataSample2)
 tail(dataSample2)
 
 # create a trajectory object using adehabitatLT
-tr<-as.ltraj(data.frame(X=dataSample2$lon,Y=dataSample2$lat),date=dataSample2$DateTime,id=dataSample2$ID,typeII=T) #create trajectory
+tr<-as.ltraj(data.frame(X=dataSample2$lon,Y=dataSample2$lat),date=dataSample2$DateTime,id=dataSample2$ID2,typeII=T) #create trajectory
 tstep<-1800 #time step we want for the interpolation, in seconds
 newtr<-redisltraj(tr, u=tstep, type = "time")
 head(newtr)
@@ -204,8 +245,11 @@ tail(df)
 # drop the lat and long NAs
 df<-df[!with(df,is.na(lat)| is.na(lon)),]
 
+# can remove the data after the NA data under interpolation
+df<-df[!with(df, ave(dx, id, FUN = function(x) cumsum(is.na(x)))),]
+
 # can export this dataframe and use it to get remote sensing data
-write.table(df, file = "DataInterp.csv", row.names=F, sep=",")
+write.table(df, file = "DataInterp30mins.csv", row.names=F, sep=",")
 
 # read dataframe back in with remote sensing data appended 
 df<-read.csv("Storm Petrel 30 Minute Interpolation-7877473479535615074.csv",header=T,sep=",")
@@ -225,6 +269,7 @@ names(df)[names(df) == 'individual.local.identifier'] <- 'ID'
 
 # need to remove the NAs where chlorophyll data is missing and the data that comes after it because
 # the HMM requires equi-spaced data 
+
 # df<-do.call(rbind,lapply(split(df, df$ID),function(x)x[cumsum(is.na(x$chloro))<1,]))
 #df <- df %>% group_by(ID) %>% filter(!is.na(cumsum(chloro)))
 #df <- as.data.frame(df)
