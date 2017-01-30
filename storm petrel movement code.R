@@ -250,15 +250,21 @@ df<-df[!with(df, ave(dx, id, FUN = function(x) cumsum(is.na(x)))),]
 
 # can export this dataframe and use it to get remote sensing data
 write.table(df, file = "DataInterp30mins.csv", row.names=F, sep=",")
-
-# read dataframe back in with remote sensing data appended 
-df<-read.csv("Storm Petrel 30 Minute Interpolation-7877473479535615074.csv",header=T,sep=",")
+# ----------------------------------------------------------------------------- 
+# read dataframe back in with remote sensing data appended from Movebank
+# -----------------------------------------------------------------------------
+df<-read.csv("DataInterp30mins.csv",header=T,sep=",")
 
 # select one bird to test
 #idx = "908"
 #df<-df[df$tag.local.identifier %in% idx,] 
 # remove last few rows where there are NAs for Chlorophyll
 #df<-head(df,-6)
+
+# these data have unnatural patterns when interpolated and so are removed
+df$id <- df[df$id !="B232bBlue0"  != "B35Pink0"  != "B76Blue0"]
+df<-df[! df$id %in% c('B232bBlue0', 'B35Pink0', 'B76Blue0'), ]
+df<-droplevels(df)
 
 # rename columns
 names(df)[names(df) == 'MODIS.Ocean.Aqua.OceanColor.4km.8d.Chlorophyll.A'] <- 'chloro'
@@ -286,12 +292,13 @@ sapply(split(df$lat,df$ID),length)
 
 # drop the birds that have fewer than x relocations 
 
-df.new <- df[!(as.numeric(df$ID) %in% which(table(df$ID)<100)),]
+df.new <- df[!(as.numeric(df$ID) %in% which(table(df$ID)<50)),]
 df.new <- droplevels(df.new)
 
 df<-df.new
 # prepare data with moveHMM
-trackData2 <- df[,c(4,5,8,11)]
+# trackData2 <- df[,c(4,5,8,11)]
+trackData2 <- df[,c(1,2,11)]
 head(trackData2)
 colnames(trackData2)[3] <- c("ID")
 data3 <- prepData(trackData2,type="LL",coordNames=c("lon","lat"))
@@ -314,7 +321,7 @@ angleMean0 <- c(pi,0) # angle mean
 kappa0 <- c(0.7,1.5) # angle concentration
 anglePar0 <- c(angleMean0,kappa0)
 
-m1 <- fitHMM(data=data3,nbStates=2,stepPar0=stepPar0,anglePar0=anglePar0,
+m1 <- fitHMM(data=data3,nbStates=3,stepPar0=stepPar0,anglePar0=anglePar0,
              formula=~1) # no covariate
 
 m2 <- fitHMM(data=data3,nbStates=2,stepPar0=stepPar0,anglePar0=anglePar0,
