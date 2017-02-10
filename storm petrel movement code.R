@@ -53,91 +53,8 @@ irishdata<-droplevels(irishdata)
 scottishdata <- data[data$location=="scotland" , ]
 scottishdata<-droplevels(scottishdata)
 
-# Irish birds 
-map('worldHires', c('Ireland', 'UK'),   
-    xlim=c(-16,-5.5), 
-    ylim=c(51,56))	
-points(irishdata$lon,irishdata$lat,col=irishdata$ID,pch=16, cex=0.5, map.axes(cex.axis=0.8),title("Storm Petrels"),
-       xlab="longitude",ylab="latitude")
-
 # remove erroneous point 
 irishdata<-irishdata[irishdata$lat < 54.5, ]
-
-# replot the Irish data
-map('worldHires', c('Ireland', 'UK'),   
-    xlim=c(-16,-5.5), 
-    ylim=c(51,56))	
-points(irishdata$lon,irishdata$lat,col=irishdata$ID,pch=16, cex=0.5, map.axes(cex.axis=0.8),title("Storm Petrels"),
-       xlab="longitude",ylab="latitude")
-
-# Scottish birds
-map('worldHires', c('UK'),   
-    xlim=c(-8,6), 
-    ylim=c(56,62))	
-points(scottishdata$lon,scottishdata$lat,col=scottishdata$ID,pch=16, cex=0.5, map.axes(cex.axis=0.8),title("Storm Petrels"),
-       xlab="longitude",ylab="latitude")
-
-# stick with Irish data only for the time being 
-# data <- irishdata
-# data<-droplevels(data)
-
-# alternatively, plot each of the bird tracks on a separate map
-
-# method 1
-
-coplot(lat ~ lon | ID, data = irishdata,pch=16)
-
-# or 
-
-# method 2
-
-op <- par(mfrow = c(2,3),
-          oma = c(5,4,0,0) + 0.1,
-          mar = c(0,0,1,1) + 0.1)
-d_ply(irishdata, "ID", transform, plot(lat~lon, main = unique(ID), type = "o",pch=16))
-
-# or 
-
-# method 3
-
-mapFunc <- function(data) {
-  map('worldHires', c('Ireland', 'UK'), xlim=c(-16,-5.5), ylim=c(51,56))    
-  points(data$lon,data$lat,pch=16, cex=.5, map.axes(cex.axis=0.8),title("Storm Petrels"),
-         xlab="longitude",ylab="latitude")
-}
-
-op <- par(mfrow = c(2,4),
-          oma = c(5,4,0,0) + 0.1,
-          mar = c(0,0,1,1) + 0.1)
-
-sapply(split(irishdata[2:1],irishdata$ID),mapFunc)
-
-# or
-
-# method 4
-
-library(ggmap)
-library(RColorBrewer)
-df<-irishdata
-#locate the center of the map
-center<-c(mean(range(df$lon)), mean(range(df$lat)))
-#in this case zoom is set by trial and error
-mymap<-qmap(location = center, zoom = 2, maptype= "terrain")
-mymap<-mymap + geom_point(aes(x=lon, y=lat, color=ID), data=df)
-mymap<-mymap + scale_size(range = c(2, 4)) + scale_color_brewer(palette = "Set1")
-mymap<-mymap + geom_path(aes(x=lon, y=lat), data=df) 
-
-mymap<-mymap + facet_wrap(~ID, nrow =2)
-print(mymap)
-
-
-# plot the tracking data with bathymetry data
-#par(mfrow = c(1,1))
-#NCEP.vis.points(wx=data$bathymetry, lats=data$lat, lons=data$lon,cols=rev(heat.colors(64)),
-#                  title.args=list(main="Storm Petrels with Bathymetry Data"), points.args=list(cex=1),
-#                    image.plot.args=list(legend.args=list(text="m AMSL",adj=0, padj=-2, cex=1.15)),
-#                      map.args=list(xlim=c(-16,-5.5), ylim=c(51,56)))
-
 
 # combine data back together again
 data<-rbind(scottishdata,irishdata)
@@ -153,11 +70,34 @@ median(sapply(split(data$lat,data$ID),length))
 data <- data[!(as.numeric(data$ID) %in% which(table(data$ID)<20)),]
 data <- droplevels(data)
 
+#calculate time difference in minutes
+df <- data[order(data$ID, data$DateTime),]
+df$tdiff <- unlist(tapply(data$DateTime, INDEX = data$ID,
+                          FUN = function(x) c(0, `units<-`(diff(x), "mins"))))
+df
+# which(df$tdiff > 1000)
+# calculate the median temporal resolution by factor level 
+mediantdiff<- tapply(df$tdiff, INDEX = df$ID,median)
+
+df2 = ifelse(mediantdiff > 40 ,0, 1)
+sort(df2)
+
+# tracks with median temporal resolution less than 40 mins 
+idx<-c("B04Blue", "B232Pink", "B46Pink", "B50Blue", "B53Pink","B62Blue","B65Blue","B72Pink","B73Blue","B79Blue", 
+       "N237Pink","N62Blue","900","902","906","908","909","910")
+
+# remove the tracks with a temporal resolution > 40 mins as set out with idx
+data<-data[data$ID %in% idx,] 
+data<-droplevels(data)
+
 # split tracks that have big time gaps by first calculating the time difference
 setDT(data)[ , ID2 := paste0(ID, cumsum(c(0, diff(DateTime)) > 150)), by = ID]
 data<-data.frame(data)
+data$ID2<-factor(data$ID2)
+levels(data$ID2)
 head(data)
-
+# check out the length of the tracks that have been broken up if they exceed 2.5 hours at any point 
+tapply(data$ID2, INDEX = data$ID2,length)
 
 ##################################################
 ##################################################
@@ -176,40 +116,6 @@ head(data)
 ##################################################
 
 
-
-
-
-
-
-
-#--------------------------------------------------------------------------------
-# convert into a 'move' type file 
-#--------------------------------------------------------------------------------
-movedata <- move(x=data$lon, y=data$lat,
-             time=data$DateTime,
-             data=data, proj=CRS("+proj=longlat +ellps=WGS84"), animal=data$ID)
-movedata
-summary(movedata)
-show(movedata)
-# number of relocation for each bird
-n.locs(movedata)
-# summary of the speed statistics in metres per second 
-speedSummary(movedata)
-# summary of the time statistics in hours
-timeSummary(movedata, units="hours")
-# summary of distance measures in metres
-distanceSummary(movedata) 
-# summary of angle measures in degrees
-angleSummary(movedata)
-# The time.lag function calculates the time lags between locations
-timeLag(movedata, units="mins")
-
-#calculate time difference in minutes
-df <- data[order(data$ID, data$DateTime),]
-df$tdiff <- unlist(tapply(data$DateTime, INDEX = data$ID,
-                          FUN = function(x) c(0, `units<-`(diff(x), "mins"))))
-#df
-which(df$tdiff > 1000)
 # ---------------------------------------------------------------------
 # Apply Hidden Markov Model to the Data 
 # ---------------------------------------------------------------------
@@ -253,7 +159,8 @@ write.table(df, file = "DataInterp30mins.csv", row.names=F, sep=",")
 # ----------------------------------------------------------------------------- 
 # read dataframe back in with remote sensing data appended from Movebank
 # -----------------------------------------------------------------------------
-df<-read.csv("DataInterp30mins.csv",header=T,sep=",")
+setwd("C:\\Users\\akane\\Desktop\\Science\\Manuscripts\\Storm Petrels\\Tracking Data\\Storm Petrel 30 Minute Interpolation Cleaned - 8 Day Chlorophyll")
+df<-read.csv("Storm Petrel 30 Minute Interpolation Cleaned -7262786941636762896.csv",header=T,sep=",")
 
 # select one bird to test
 #idx = "908"
@@ -262,15 +169,14 @@ df<-read.csv("DataInterp30mins.csv",header=T,sep=",")
 #df<-head(df,-6)
 
 # these data have unnatural patterns when interpolated and so are removed
-df$id <- df[df$id !="B232bBlue0"  != "B35Pink0"  != "B76Blue0"]
-df<-df[! df$id %in% c('B232bBlue0', 'B35Pink0', 'B76Blue0'), ]
+df<-df[! df$tag.local.identifier %in% c('B232bBlue0', 'B35Pink0', 'B76Blue0'), ]
 df<-droplevels(df)
 
 # rename columns
 names(df)[names(df) == 'MODIS.Ocean.Aqua.OceanColor.4km.8d.Chlorophyll.A'] <- 'chloro'
 names(df)[names(df) == 'location.long'] <- 'lon'
 names(df)[names(df) == 'location.lat'] <- 'lat'
-names(df)[names(df) == 'individual.local.identifier'] <- 'ID'
+names(df)[names(df) == 'tag.local.identifier'] <- 'ID'
 
 
 # need to remove the NAs where chlorophyll data is missing and the data that comes after it because
@@ -290,17 +196,18 @@ df<-df[!with(df, ave(chloro, ID, FUN = function(x) cumsum(is.na(x)))),]
 # count the number of relocations for each bird 
 sapply(split(df$lat,df$ID),length)
 
-# drop the birds that have fewer than x relocations 
+# drop the tracks that have fewer than x relocations 
 
-df.new <- df[!(as.numeric(df$ID) %in% which(table(df$ID)<50)),]
+df.new <- df[!(as.numeric(df$ID) %in% which(table(df$ID)<25)),]
 df.new <- droplevels(df.new)
+
 
 df<-df.new
 # prepare data with moveHMM
-# trackData2 <- df[,c(4,5,8,11)]
-trackData2 <- df[,c(1,2,11)]
+trackData2 <- df[,c(4,5,8,11)]
+#trackData2 <- df[,c(1,2,11)]
 head(trackData2)
-colnames(trackData2)[3] <- c("ID")
+# colnames(trackData2)[3] <- c("ID")
 data3 <- prepData(trackData2,type="LL",coordNames=c("lon","lat"))
 plot(data3,compact=T)
 
@@ -321,11 +228,11 @@ angleMean0 <- c(pi,0) # angle mean
 kappa0 <- c(0.7,1.5) # angle concentration
 anglePar0 <- c(angleMean0,kappa0)
 
-m1 <- fitHMM(data=data3,nbStates=3,stepPar0=stepPar0,anglePar0=anglePar0,
+m1 <- fitHMM(data=data3,nbStates=2,stepPar0=stepPar0,anglePar0=anglePar0,
              formula=~1) # no covariate
 
 m2 <- fitHMM(data=data3,nbStates=2,stepPar0=stepPar0,anglePar0=anglePar0,
-             formula=~chloro) # covariate 'chlorophyll'
+             formula=~chloro) # covariate included
 
 ## Model selection using the AIC
 m1
@@ -337,7 +244,6 @@ plot(m2)
 
 print(AIC(m1,m2))
 
-
 states <- viterbi(m1)
 states[1:25]
 
@@ -346,9 +252,24 @@ head(sp)
 plotStates(m1)
 
 # compute the pseudo-residuals
-pr <- pseudoRes(m1)
+pr <- pseudoRes(m2)
 # time series, qq-plots, and ACF of the pseudo-residuals
-plotPR(m1)
+plotPR(m2)
+
+# fit a three state model
+# initial parameters
+mu0 <- c(0.1,0.5,3)
+sigma0 <- c(0.05,0.5,1)
+zeromass0 <- c(0.05,0.0001,0.0001)
+stepPar0 <- c(mu0,sigma0,zeromass0)
+angleMean0 <- c(pi,pi,0)
+kappa0 <- c(1,1,1)
+anglePar0 <- c(angleMean0,kappa0)
+# fit the 3-state model
+m3 <- fitHMM(data=data3,nbStates=3,stepPar0=stepPar0,
+             anglePar0=anglePar0,formula=~chloro)
+
+
 # ---------------------------------------------
 # Try interpolating for one well behaved track 
 # ---------------------------------------------
@@ -448,3 +369,115 @@ anglePar0 <- c(angleMean0,kappa0)
  m2
  plot(m2)
 
+# Plotting HMM states on map 
+ library(rgdal)
+ 
+ lldata <- data.frame(ID=data3$ID,x=attr(data3,"coords")[,4],
+                      y=attr(data3,"coords")[,5])
+ 
+ lldata <- data.frame(ID=data3$ID,x=data3$x,
+                      y=data3$y)
+ 
+ plotSat(data3,zoom=8)
+ 
+ #--------------------------------------------------------------------------------
+ # convert into a 'move' type file 
+ #--------------------------------------------------------------------------------
+ movedata <- move(x=data$lon, y=data$lat,
+                  time=data$DateTime,
+                  data=data, proj=CRS("+proj=longlat +ellps=WGS84"), animal=data$ID)
+ movedata
+ summary(movedata)
+ show(movedata)
+ # number of relocation for each bird
+ n.locs(movedata)
+ # summary of the speed statistics in metres per second 
+ speedSummary(movedata)
+ # summary of the time statistics in hours
+ timeSummary(movedata, units="hours")
+ # summary of distance measures in metres
+ distanceSummary(movedata) 
+ # summary of angle measures in degrees
+ angleSummary(movedata)
+ # The time.lag function calculates the time lags between locations
+ timeLag(movedata, units="mins")
+ 
+ #--------------------------------------------------------------------------------
+ # Plot Data 
+ #--------------------------------------------------------------------------------
+ # plot the Irish data
+ map('worldHires', c('Ireland', 'UK'),   
+     xlim=c(-16,-5.5), 
+     ylim=c(51,56))	
+ points(irishdata$lon,irishdata$lat,col=irishdata$ID,pch=16, cex=0.5, map.axes(cex.axis=0.8),title("Storm Petrels"),
+        xlab="longitude",ylab="latitude")
+ 
+ # Scottish birds
+ map('worldHires', c('UK'),   
+     xlim=c(-8,6), 
+     ylim=c(56,62))	
+ points(scottishdata$lon,scottishdata$lat,col=scottishdata$ID,pch=16, cex=0.5, map.axes(cex.axis=0.8),title("Storm Petrels"),
+        xlab="longitude",ylab="latitude")
+ 
+ # stick with Irish data only for the time being 
+ # data <- irishdata
+ # data<-droplevels(data)
+ 
+ # alternatively, plot each of the bird tracks on a separate map
+ 
+ # method 1
+ 
+ coplot(lat ~ lon | ID, data = irishdata,pch=16)
+ 
+ # or 
+ 
+ # method 2
+ 
+ op <- par(mfrow = c(2,3),
+           oma = c(5,4,0,0) + 0.1,
+           mar = c(0,0,1,1) + 0.1)
+ d_ply(irishdata, "ID", transform, plot(lat~lon, main = unique(ID), type = "o",pch=16))
+ 
+ # or 
+ 
+ # method 3
+ 
+ mapFunc <- function(data) {
+   map('worldHires', c('Ireland', 'UK'), xlim=c(-16,-5.5), ylim=c(51,56))    
+   points(data$lon,data$lat,pch=16, cex=.5, map.axes(cex.axis=0.8),title("Storm Petrels"),
+          xlab="longitude",ylab="latitude")
+ }
+ 
+ op <- par(mfrow = c(2,4),
+           oma = c(5,4,0,0) + 0.1,
+           mar = c(0,0,1,1) + 0.1)
+ 
+ sapply(split(irishdata[2:1],irishdata$ID),mapFunc)
+ 
+ # or
+ 
+ # method 4
+ 
+ library(ggmap)
+ library(RColorBrewer)
+ df<-irishdata
+ #locate the center of the map
+ center<-c(mean(range(df$lon)), mean(range(df$lat)))
+ #in this case zoom is set by trial and error
+ mymap<-qmap(location = center, zoom = 2, maptype= "terrain")
+ mymap<-mymap + geom_point(aes(x=lon, y=lat, color=ID), data=df)
+ mymap<-mymap + scale_size(range = c(2, 4)) + scale_color_brewer(palette = "Set1")
+ mymap<-mymap + geom_path(aes(x=lon, y=lat), data=df) 
+ 
+ mymap<-mymap + facet_wrap(~ID, nrow =2)
+ print(mymap)
+ 
+ 
+ # plot the tracking data with bathymetry data
+ #par(mfrow = c(1,1))
+ #NCEP.vis.points(wx=data$bathymetry, lats=data$lat, lons=data$lon,cols=rev(heat.colors(64)),
+ #                  title.args=list(main="Storm Petrels with Bathymetry Data"), points.args=list(cex=1),
+ #                    image.plot.args=list(legend.args=list(text="m AMSL",adj=0, padj=-2, cex=1.15)),
+ #                      map.args=list(xlim=c(-16,-5.5), ylim=c(51,56)))
+ 
+ 

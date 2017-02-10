@@ -26,6 +26,7 @@ length(data$lat)
 # remove NAs
 data<-data[complete.cases(data),]
 length(data$lat)
+
 # select the Irish data only 
 irishdata <- data[data$location=="ireland" , ] 
 irishdata<-droplevels(irishdata)
@@ -38,8 +39,23 @@ myvars <- c("lon", "lat","ID")
 track1 <- track1[myvars]
 head(track1)
 
-# Download bathymetric data and save on disk
-bat <- getNOAA.bathy(-16,-5.5, 51, 56, res = 1, keep = TRUE)
+# select Scottish data only 
+scottishdata <- data[data$location=="scotland" , ] 
+scottishdata<-droplevels(scottishdata)
+
+# rename it 
+track1<-scottishdata
+# match it to example data
+myvars <- c("lon", "lat","ID")
+track1 <- track1[myvars]
+head(track1)
+
+
+# Download bathymetric data and save on disk - Irish 
+batIre <- getNOAA.bathy(-16,-5.5, 51, 56, res = 1, keep = TRUE)
+
+# Download bathymetric data and save on disk - Scottish 
+batScot <- getNOAA.bathy(-8,6, 56, 62, res = 1, keep = TRUE)
 
 # Get depth profile along both tracks and remove positive depths (since random fake values can be on land)
 # path.profile() gets depth value for all cells of the bathymetric grid below the gps tracks
@@ -59,22 +75,22 @@ track1$depth <- depth1$depth ; track1 <- track1[-track1$depth > 0,]
 blues <- c("lightsteelblue4", "lightsteelblue3", "lightsteelblue2", "lightsteelblue1")
 greys <- c(grey(0.6), grey(0.93), grey(0.99))
 
-## Bathymetric map with gps tracks
-plot(bat, land = TRUE, image = TRUE, lwd = 0.2, bpal = list(c(min(bat,na.rm=TRUE), 0, blues), c(0, max(bat, na.rm=TRUE), greys)), ylim=c(51,56))
-plot(bat, deep = 0, shallow = 0, step = 0, lwd = 0.8, add = TRUE)
+## Bathymetric map with gps tracks - Scottish 
+plot(batScot, land = TRUE, image = TRUE, lwd = 0.2, bpal = list(c(min(batScot,na.rm=TRUE), 0, blues), c(0, max(batScot, na.rm=TRUE), greys)), ylim=c(56,62))
+plot(batScot, deep = 0, shallow = 0, step = 0, lwd = 0.8, add = TRUE)
+
+## Bathymetric map with gps tracks - Irish
+plot(batIre, land = TRUE, image = TRUE, lwd = 0.2, bpal = list(c(min(batIre,na.rm=TRUE), 0, blues), c(0, max(batIre, na.rm=TRUE), greys)), ylim=c(51,56))
+plot(batIre, deep = 0, shallow = 0, step = 0, lwd = 0.8, add = TRUE)
+
 lines(track1[track1$ID=="900",], col = "purple",lwd = 1.5 )
 lines(track1[track1$ID=="902",], col = "red" ,lwd = 1.5 )
 lines(track1[track1$ID=="906",], col = "blue",lwd = 1.5 )
 lines(track1[track1$ID=="908",], col = "green4",lwd = 1.5 )
 lines(track1[track1$ID=="909",], col = "orange",lwd = 1.5 )
 lines(track1[track1$ID=="910",], col = "cyan",lwd = 1.5 )
+lines(track1, col = "red",lwd = 1.5 )
 legend("topright", legend = c("900", "902", "906", "908", "909", "910"), lwd = 1, col = c("purple", "red", "blue", "green4", "orange", "yellow4"), pch = 1, pt.cex = 0.5, bg="white")
 
-## Depths profiles along gps tracks
-plotProfile(path1, main = "Track 1")
 
-## Depth as a function of time since the deployment of gps tags
-par(mar=c(5,4,1,2))
-plot(track1$time, track1$depth, xlab = "Time (arbitrary unit)", ylab = "Depth (m)", type = "o", cex = 0.5, col = "brown3", xlim = range(c(track1$time, track2$time)), ylim = range(c(track1$depth, track2$depth)))
-lines(track2$time, track2$depth, type = "o", cex = 0.5, col = "darkorange1")
-legend("bottomright", legend = c("Track 1", "Track 2"), lwd = 1, col = c("brown3", "darkorange1"), pch = 1, pt.cex = 0.5)
+
