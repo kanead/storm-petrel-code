@@ -92,5 +92,56 @@ lines(track1[track1$ID=="910",], col = "cyan",lwd = 1.5 )
 lines(track1, col = "red",lwd = 1.5 )
 legend("topright", legend = c("900", "902", "906", "908", "909", "910"), lwd = 1, col = c("purple", "red", "blue", "green4", "orange", "yellow4"), pch = 1, pt.cex = 0.5, bg="white")
 
+#
+# Plot viterbi sequence tracks on marmap background 
+df <- read.csv("tracksPlusViterbi.csv", header = T,sep = ",")
 
+# remove tracks if you want to showcase a specific bird
+
+# keep track 9080 only for Irish example 
+idx<-c("9080")
+
+# keep track B62Blue0 only for Scottish example 
+idx<-c("B62Blue0")
+
+# remove the other tracks 
+df<-df[df$ID %in% idx,] 
+df<-droplevels(df)
+
+# rename column headers 
+names(df)[names(df) == 'x'] <- 'lon'
+names(df)[names(df) == 'y'] <- 'lat'
+
+# match it to example data, we retain viterbi so we can use it as a colour code 
+myvars <- c("lon", "lat","viterbi")
+df <- df[myvars]
+head(df)
+
+# Download bathymetric data and save on disk - Irish 
+batIre <- getNOAA.bathy(-16,-5.5, 51, 56, res = 1, keep = TRUE)
+
+# Download bathymetric data and save on disk - Scottish 
+batScot <- getNOAA.bathy(-8,6, 56, 62, res = 1, keep = TRUE)
+
+# Select colours
+blues <- c("lightsteelblue4", "lightsteelblue3", "lightsteelblue2", "lightsteelblue1")
+greys <- c(grey(0.6), grey(0.93), grey(0.99))
+
+## Bathymetric map with gps tracks - Irish
+plot(batIre, land = TRUE, image = TRUE, lwd = 0.2, bpal = list(c(min(batIre,na.rm=TRUE), 0, blues), c(0, max(batIre, na.rm=TRUE), greys)), ylim=c(51,56))
+plot(batIre, deep = 0, shallow = 0, step = 0, lwd = 0.8, add = TRUE)
+
+## Bathymetric map with gps tracks - Scottish 
+plot(batScot, land = TRUE, image = TRUE, lwd = 0.2, bpal = list(c(min(batScot,na.rm=TRUE), 0, blues), c(0, max(batScot, na.rm=TRUE), greys)), xlim=c(-8,6), ylim=c(56,62))
+plot(batScot, deep = 0, shallow = 0, step = 0, lwd = 0.8, add = TRUE)
+
+points(df[df$viterbi=="2",], col = "lightskyblue" ,pch = 16)
+points(df[df$viterbi=="3",], col = "seagreen3",pch = 16)
+points(df[df$viterbi=="1",], col = "goldenrod3",pch = 16)
+
+#lines(df[df$viterbi=="1",], col = "goldenrod3",lwd = 1.5)
+#lines(df[df$viterbi=="2",], col = "lightskyblue" ,lwd = 1.5)
+#lines(df[df$viterbi=="3",], col = "seagreen3",lwd = 1.5)
+
+legend("topleft", legend = c("state 1", "state 2", "state 3"), col = c("goldenrod3", "lightskyblue", "seagreen3"), pch = 16, pt.cex = 0.5, bg="white")
 

@@ -15,6 +15,8 @@ library(move)
 library(RNCEP)
 library(circular)
 library(data.table) # for renaming tracks with big time gaps 
+library(dplyr)
+# make sure to use detach(package:plyr)
 
 
 setwd("C:\\Users\\akane\\Desktop\\Science\\Manuscripts\\Storm Petrels\\Tracking Data")
@@ -47,14 +49,27 @@ length(data$lat)
 #--------------------------------------------------------------------------------
 # specify the colours
 # palette(c("grey","orange","blue","red","yellow","black","cyan","pink"))
+# split up Irish data
 irishdata <- data[data$location=="ireland" , ] 
 irishdata<-droplevels(irishdata)
 
+# remove erroneous point 
+irishdata<-irishdata[irishdata$lat < 54.5, ]
+
+# find max distance from colony for each of the tracks for the Irish birds 
+# High Island coordinates 53.5464, -10.2572	
+# there are 2 other functions to measure spatial distance in the geosphere package but they give the same values
+myfuncCosineIre<-function(x){max(distCosine(c(-10.2572,53.5464), cbind(x$lon, x$lat)))/1000}
+sapply(split(irishdata[2:1],irishdata$ID), myfuncCosine)
+
+# split up Scottish data
 scottishdata <- data[data$location=="scotland" , ]
 scottishdata<-droplevels(scottishdata)
 
-# remove erroneous point 
-irishdata<-irishdata[irishdata$lat < 54.5, ]
+# find max distance from colony for each of the tracks for the Scottish birds 
+# Mousa coordinates 60, -1.166667	
+myfuncCosineScot<-function(x){max(distCosine(c(-1.166667,60), cbind(x$lon, x$lat)))/1000}
+sapply(split(scottishdata[2:1],scottishdata$ID), myfuncCosineScot)
 
 # combine data back together again
 data<-rbind(scottishdata,irishdata)
@@ -99,44 +114,19 @@ head(data)
 # check out the length of the tracks that have been broken up if they exceed 2.5 hours at any point 
 tapply(data$ID2, INDEX = data$ID2,length)
 
-##################################################
-##################################################
-#timeCheck<-function(df) {
-#sapply(1:(nrow(df) - 1), function(i){
-#  timeDiff<- difftime(df$DateTime[i+1], df$DateTime[i], units = "mins" )
-#  return(timeDiff)
-#  })
-#}
-# preserve order of levels 
-#data$ID <- factor(data$ID, levels=unique(data$ID))
-#timeDiffData<-sapply(split(data, data$ID), timeCheck)
-#unlistTimes<-data.frame(unlist(timeDiffData))
-#data$timeDiffs<-unlistTimes
-##################################################
-##################################################
+# remove the tracks that are still misbehaving. First, specify them. They have one reloc by itself or are split into multiple tiny tracks
+idx2<-c("9021","9091","9092","9093","9094","9095","9096","B46Pink2","B46Pink3","B53Pink3","B53Pink4","B72Pink3","B73Blue4","N237Pink3")
 
+# write a function that is the opposite of the match function %in%
+`%not in%` <- function (x, table) is.na(match(x, table, nomatch=NA_integer_))
 
-# ---------------------------------------------------------------------
-# Apply Hidden Markov Model to the Data 
-# ---------------------------------------------------------------------
-# -----------------------------------------------------------------------------
-# Interpolate the tracks so that they are measured on the same interval
-# -----------------------------------------------------------------------------
-# -----------------------------------------------------------------------------
-# Currently this does not work for all tracks being interpolated 
-# -----------------------------------------------------------------------------
-# idx = c("900","902","908","910","906","906B","909","909B")
-#idx = c("900","902","908","910")
-#idx = "908"
-
-dataSample2<-data#[data$ID %in% idx,] 
-dataSample2<-droplevels(dataSample2)
-head(dataSample2)
-tail(dataSample2)
+# We remove them using the new function and drop their levels again here 
+data<-data[data$ID2 %not in% idx2,] 
+data<-droplevels(data)
 
 # create a trajectory object using adehabitatLT
-tr<-as.ltraj(data.frame(X=dataSample2$lon,Y=dataSample2$lat),date=dataSample2$DateTime,id=dataSample2$ID2,typeII=T) #create trajectory
-tstep<-1800 #time step we want for the interpolation, in seconds
+tr<-as.ltraj(data.frame(X=data$lon,Y=data$lat),date=data$DateTime,id=data$ID2,typeII=T) #create trajectory
+tstep<-1800 #time step we want for the interpolation, in seconds, 1800 secs = 30 mins 
 newtr<-redisltraj(tr, u=tstep, type = "time")
 head(newtr)
 head(newtr[[1]])
@@ -148,29 +138,14 @@ names(df)[names(df) == 'y'] <- 'lat'
 head(df)
 tail(df)
 
-# drop the lat and long NAs
-df<-df[!with(df,is.na(lat)| is.na(lon)),]
-
-# can remove the data after the NA data under interpolation
-df<-df[!with(df, ave(dx, id, FUN = function(x) cumsum(is.na(x)))),]
-
 # can export this dataframe and use it to get remote sensing data
-write.table(df, file = "DataInterp30mins.csv", row.names=F, sep=",")
-# ----------------------------------------------------------------------------- 
-# read dataframe back in with remote sensing data appended from Movebank
-# -----------------------------------------------------------------------------
-setwd("C:\\Users\\akane\\Desktop\\Science\\Manuscripts\\Storm Petrels\\Tracking Data\\Storm Petrel 30 Minute Interpolation Cleaned - 8 Day Chlorophyll")
-df<-read.csv("Storm Petrel 30 Minute Interpolation Cleaned -7262786941636762896.csv",header=T,sep=",")
+write.table(df, file = "subsetTracks30MinInterpolation.csv", row.names=F, sep=",")
 
-# select one bird to test
-#idx = "908"
-#df<-df[df$tag.local.identifier %in% idx,] 
-# remove last few rows where there are NAs for Chlorophyll
-#df<-head(df,-6)
-
-# these data have unnatural patterns when interpolated and so are removed
-df<-df[! df$tag.local.identifier %in% c('B232bBlue0', 'B35Pink0', 'B76Blue0'), ]
-df<-droplevels(df)
+# ----------------------------------------------------------------------------------------- 
+# read dataframe back in with remote sensing data appended from Movebank for chlorophyll
+# ----------------------------------------------------------------------------------------
+setwd("C:\\Users\\akane\\Desktop\\Science\\Manuscripts\\Storm Petrels\\Tracking Data\\subsetTracks30MinInterpolation- 8 Day Chlorophyll")
+df<-read.csv("subsetTracks30MinInterpolation-8770236889496130104.csv",header=T,sep=",")
 
 # rename columns
 names(df)[names(df) == 'MODIS.Ocean.Aqua.OceanColor.4km.8d.Chlorophyll.A'] <- 'chloro'
@@ -178,36 +153,9 @@ names(df)[names(df) == 'location.long'] <- 'lon'
 names(df)[names(df) == 'location.lat'] <- 'lat'
 names(df)[names(df) == 'tag.local.identifier'] <- 'ID'
 
-
-# need to remove the NAs where chlorophyll data is missing and the data that comes after it because
-# the HMM requires equi-spaced data 
-
-# df<-do.call(rbind,lapply(split(df, df$ID),function(x)x[cumsum(is.na(x$chloro))<1,]))
-#df <- df %>% group_by(ID) %>% filter(!is.na(cumsum(chloro)))
-#df <- as.data.frame(df)
-#write.table(trackData2, file = "Cleaned Interpolated Data.csv", row.names=F, sep=",")
-#library(data.table)
-#df<-setDT(df)[,  .SD[cumsum(is.na(chloro))<1], by= ID]
-#df <- as.data.frame(df)
-#df<-droplevels(df)
-
-df<-df[!with(df, ave(chloro, ID, FUN = function(x) cumsum(is.na(x)))),]
-
-# count the number of relocations for each bird 
-sapply(split(df$lat,df$ID),length)
-
-# drop the tracks that have fewer than x relocations 
-
-df.new <- df[!(as.numeric(df$ID) %in% which(table(df$ID)<25)),]
-df.new <- droplevels(df.new)
-
-
-df<-df.new
 # prepare data with moveHMM
 trackData2 <- df[,c(4,5,8,11)]
-#trackData2 <- df[,c(1,2,11)]
 head(trackData2)
-# colnames(trackData2)[3] <- c("ID")
 data3 <- prepData(trackData2,type="LL",coordNames=c("lon","lat"))
 plot(data3,compact=T)
 
@@ -220,166 +168,261 @@ angleMean0 <- c(pi,0) # angle mean
 kappa0 <- c(1,1) # angle concentration
 anglePar0 <- c(angleMean0,kappa0)
 
-# alternative parameters
-mu0 <- c(1,4) # step mean (two parameters: one for each state)
-sigma0 <- c(0.5,1) # step SD
-stepPar0 <- c(mu0,sigma0)
-angleMean0 <- c(pi,0) # angle mean
-kappa0 <- c(0.7,1.5) # angle concentration
-anglePar0 <- c(angleMean0,kappa0)
-
+# fit a 2 state model with no covariate 
 m1 <- fitHMM(data=data3,nbStates=2,stepPar0=stepPar0,anglePar0=anglePar0,
-             formula=~1) # no covariate
+             formula=~1) 
 
+# fit a 2 state model with covariate included
 m2 <- fitHMM(data=data3,nbStates=2,stepPar0=stepPar0,anglePar0=anglePar0,
-             formula=~chloro) # covariate included
+             formula=~chloro) 
 
-## Model selection using the AIC
+# look at the output of each model and plot it
 m1
 plot(m1)
 
 m2
 plot(m2)
 
-
+## Model selection using the AIC
 print(AIC(m1,m2))
 
-states <- viterbi(m1)
-states[1:25]
-
-sp <- stateProbs(m1)
-head(sp)
-plotStates(m1)
-
-# compute the pseudo-residuals
-pr <- pseudoRes(m2)
-# time series, qq-plots, and ACF of the pseudo-residuals
-plotPR(m2)
-
-# fit a three state model
-# initial parameters
-mu0 <- c(0.1,0.5,3)
-sigma0 <- c(0.05,0.5,1)
-zeromass0 <- c(0.05,0.0001,0.0001)
-stepPar0 <- c(mu0,sigma0,zeromass0)
-angleMean0 <- c(pi,pi,0)
-kappa0 <- c(1,1,1)
-anglePar0 <- c(angleMean0,kappa0)
-# fit the 3-state model
-m3 <- fitHMM(data=data3,nbStates=3,stepPar0=stepPar0,
-             anglePar0=anglePar0,formula=~chloro)
-
-
-# ---------------------------------------------
-# Try interpolating for one well behaved track 
-# ---------------------------------------------
-#dataSample<-data[data$ID == 908, ]
-#head(dataSample)
-
-# create a trajectory object using adehabitatLT
-#tr<-as.ltraj(data.frame(X=dataSample$lon,Y=dataSample$lat),date=dataSample$DateTime,id=dataSample$ID,typeII=T) #create trajectory
-#tstep<-1800 #time step we want for the interpolation, in seconds
-#newtr<-redisltraj(tr, u=tstep, type = "time")
-#head(newtr)
-#head(newtr[[1]])
-
-# convert object of class ltraj to a dataframe 
-#df<-ld(newtr)
-#names(df)[names(df) == 'x'] <- 'lon'
-#names(df)[names(df) == 'y'] <- 'lat'
-#head(df)
-
-#prepare data with moveHMM
-#trackData2 <- df[,c(1,2,11)]
-#colnames(trackData2)[3] <- c("ID")
-#data3 <- prepData(trackData2,type="LL",coordNames=c("lon","lat"))
-#plot(data3,compact=T)
-
-#apply two state HMM
-## initial parameters for gamma and von Mises distributions
-mu0 <- c(1,4) # step mean (two parameters: one for each state)
-sigma0 <- c(0.5,1) # step SD
+#initial parameters for distributions (model with 3 states)
+mu0 <- c(0.1,1,1)                     #step mean
+sigma0 <- c(0.1,1,1)                  #step SD
+#zeromass0 <- c(0.2,0.1,0.1)           #step zero-mass
 stepPar0 <- c(mu0,sigma0)
-angleMean0 <- c(pi,0) # angle mean
-kappa0 <- c(0.7,1.5) # angle concentration
+angleMean0 <- c(pi,0,pi)              #angle mean
+kappa0 <- c(1,2,2)                    #angle concentration
 anglePar0 <- c(angleMean0,kappa0)
 
-#m1 <- fitHMM(data=data3,nbStates=2,stepPar0=stepPar0,anglePar0=anglePar0,
-#             formula=~1) # no covariate
+#HMM fitting 3 states
+m3 <- fitHMM(data=data3,nbStates=3,stepPar0=stepPar0,anglePar0=anglePar0)
 
-#m1
-#plot(m1)
+# fit a 3 state model with covariate included
+m4 <- fitHMM(data=data3,nbStates=3,stepPar0=stepPar0,anglePar0=anglePar0,
+             formula=~chloro) 
 
-#states <- viterbi(m1)
-#states[1:25]
+# look at the output of each model and plot it
+m3
+plot(m3)
+m4
+plot(m4)
 
-#sp <- stateProbs(m1)
-#head(sp)
-#plotStates(m1)
+# compare AIC scores of the 4 models 
+print(AIC(m1,m2,m3,m4))
+
+# save the viterbi states to the interpolated track 
+statesm4 <- viterbi(m4)
+data3$viterbi <- statesm4
+head(data3)
+
+# export the interpolated data with the Viterbi sequence 
+trackPlusViterbi <- data.frame(data3)
+write.table(trackPlusViterbi, file = "tracksPlusViterbi.csv", row.names=F, sep=",")
+
+# load this data back in here if necessary 
+# data3 <- read.table("tracksPlusViterbi.csv", header=T,sep=",")
+
+# plot the track with the viterbi sequence 
+plot(data3$x[data3$ID=="9080"],data3$y[data3$ID=="9080"], col=c("goldenrod3", "lightskyblue", "seagreen3")[data3$viterbi[data3$ID=="9080"]],
+     pch=16,lty=1,xlab="longitude", ylab="latitude")
+
+# plot the track with the viterbi sequence on a map 
+# create the map 
+library(rworldmap)   
+newmap <- getMap(resolution = "high")  
+plot(newmap,
+       xlim = c(-15.5, -8),
+       ylim = c(51.5, 55.5)
+     )
+
+# add the points of the track 
+points(data3$x[data3$ID=="9080"],data3$y[data3$ID=="9080"], col=c("goldenrod3", "lightskyblue", "seagreen3")[data3$viterbi[data3$ID=="9080"]],
+     pch=20,lty=1,xlab="longitude", ylab="latitude")
+
+# create a legend 
+legend("topleft", # places a legend at the appropriate place 
+       c("State 1","State 2", "State 3"), # puts text in the legend
+       pch=20, # gives the legend appropriate symbols (lines)
+       col=c("goldenrod3", "lightskyblue", "seagreen3"),
+       bty='n') # gives the legend lines the correct color and width
+
+# -------------------------------------------------------------------------------------------------
+# compute the 2D binned kernel density estimate for foraging behaviour
+# -------------------------------------------------------------------------------------------------
+library(adehabitatHR)
+data3State3 <- data3[data3$viterbi=="3" , ] 
+data3State3<-droplevels(data3State3)
+
+spdf <- SpatialPointsDataFrame(coordinates(cbind(data3State3$x, data3State3$y)),
+                               data = data3State3)
+# another quick plot
+plot(spdf, pch = 19, cex = .5)
+
+
+kd <- kernelUD(spdf)
+image(kd)
+
+ud <- getverticeshr(kd, percent = 90)
+class(ud)
+plot(ud)
+# -------------------------------------------------------------------------------------------------
+# Create a heat map of the behaviours of the birds over time 
+# -------------------------------------------------------------------------------------------------
+# here I've added the timestamp from df to data3 so I can associate the viterbi sequence with time
+data3$timeStamp<-df$timestamp
+head(data3)
+data3$timeStamp<-as.POSIXct(data3$timeStamp)
+head(data3)
+# I only want the hour and minute portion of the timestamp
+data3$time<-format(data3$timeStamp, "%H")
+head(data3)
+
+library("ggplot2")
+library("plyr")
+library("reshape2")
+library("scales")
+
+dfStates<-data3[,c("viterbi","time","ID")]
+
+# heat map for all 3 states at the same time 
+dfStates %>% 
+  as.data.frame() %>% 
+  group_by(viterbi, time) %>% 
+  summarise(n = n()) %>% 
+  ggplot(aes(time, y = factor(viterbi), fill = n)) + 
+  geom_raster() +
+  scale_fill_continuous('Count', low = 'white', high = 'darkgreen', guide = 'legend') +
+  scale_x_continuous(expand = c(0, 0), breaks = c(1,seq(0, 25, 1), 24)) +
+  ylab('State') + 
+  xlab('Hour') +
+  coord_fixed() +
+  theme(legend.position = 'top',
+        legend.key.height = unit(.2, 'cm'))
+
+
+# separate out the states and plot them side by side 
+# state 1
+dfStatesSub1 <- dfStates[dfStates$viterbi=="1" , ] 
+dfStatesSub1<-droplevels(dfStatesSub1)
+
+dfStatesSub1 %>% 
+  as.data.frame() %>% 
+  group_by(viterbi, time) %>% 
+  summarise(n = n()) %>% 
+  ggplot(aes(time, y = factor(viterbi), fill = n)) + 
+  geom_raster() +
+  scale_fill_continuous('Count', low = 'white', high = 'goldenrod3', guide = 'legend') +
+  scale_x_continuous(expand = c(0, 0), breaks = c(1,seq(0, 25, 1), 24)) +
+  ylab('State') + 
+  xlab('Hour') +
+  coord_fixed() +
+  theme(legend.position = 'top',
+        legend.key.height = unit(.2, 'cm'))
+
+
+# state 2 lightskyblue
+dfStatesSub2 <- dfStates[dfStates$viterbi=="2" , ] 
+dfStatesSub2<-droplevels(dfStatesSub2)
+
+dfStatesSub2 %>% 
+  as.data.frame() %>% 
+  group_by(viterbi, time) %>% 
+  summarise(n = n()) %>% 
+  ggplot(aes(time, y = factor(viterbi), fill = n)) + 
+  geom_raster() +
+  scale_fill_continuous('Count', low = 'white', high = 'lightskyblue', guide = 'legend') +
+  scale_x_continuous(expand = c(0, 0), breaks = c(1,seq(0, 25, 1), 24)) +
+  ylab('State') + 
+  xlab('Hour') +
+  coord_fixed() +
+  theme(legend.position = 'top',
+        legend.key.height = unit(.2, 'cm'))
+
+
+# state 3 seagreen3
+dfStatesSub3 <- dfStates[dfStates$viterbi=="3" , ] 
+dfStatesSub3<-droplevels(dfStatesSub3)
+
+dfStatesSub3 %>% 
+  as.data.frame() %>% 
+  group_by(viterbi, time) %>% 
+  summarise(n = n()) %>% 
+  ggplot(aes(time, y = factor(viterbi), fill = n)) + 
+  geom_raster() +
+  scale_fill_continuous('Count', low = 'white', high = 'seagreen3', guide = 'legend') +
+  scale_x_continuous(expand = c(0, 0), breaks = c(1,seq(0, 25, 1), 24)) +
+  ylab('State') + 
+  xlab('Hour') +
+  coord_fixed() +
+  theme(legend.position = 'top',
+        legend.key.height = unit(.2, 'cm')) 
 
 
 
-# --------------------------------------------------------------------------
-# Model with an environmental covariate 
-# --------------------------------------------------------------------------
-# dataSample<-data[data$ID == 908, ]
-# head(dataSample)
+# ----------------------------------------------------------------------------------------- 
+# read dataframe back in with remote sensing data appended from Movebank for Charnock
+# ----------------------------------------------------------------------------------------
+setwd("C:\\Users\\akane\\Desktop\\Science\\Manuscripts\\Storm Petrels\\Tracking Data\\subsetTracks30MinInterpolation- Charnock")
+df<-read.csv("subsetTracks30MinInterpolation-491691643874147945.csv",header=T,sep=",")
 
-# create a trajectory object using adehabitatLT
-# tr<-as.ltraj(data.frame(X=dataSample$lon,Y=dataSample$lat),date=dataSample$DateTime,id=dataSample$ID,typeII=T) #create trajectory
-# tstep<-1800 #time step we want for the interpolation, in seconds
-# newtr<-redisltraj(tr, u=tstep, type = "time")
-# head(newtr)
-# head(newtr[[1]])
+# rename columns
+names(df)[names(df) == 'ECMWF.Interim.Full.Daily.SFC.FC.Charnock.Parameter'] <- 'charnock'
+names(df)[names(df) == 'location.long'] <- 'lon'
+names(df)[names(df) == 'location.lat'] <- 'lat'
+names(df)[names(df) == 'tag.local.identifier'] <- 'ID'
 
-# convert object of class ltraj to a dataframe 
-# df<-ld(newtr)
-# names(df)[names(df) == 'x'] <- 'lon'
-# names(df)[names(df) == 'y'] <- 'lat'
-# head(df)
+# prepare data with moveHMM
+trackData2 <- df[,c(4,5,8,11)]
+head(trackData2)
+data3 <- prepData(trackData2,type="LL",coordNames=c("lon","lat"))
+plot(data3,compact=T)
 
-# the environmental data will need to be applied to the interpolated data at this point 
-# for now we'll use non interpolated data for the best track 
+#initial parameters for distributions (model with 3 states)
+mu0 <- c(0.1,1,1)                     #step mean
+sigma0 <- c(0.1,1,1)                  #step SD
+#zeromass0 <- c(0.2,0.1,0.1)           #step zero-mass
+stepPar0 <- c(mu0,sigma0)
+angleMean0 <- c(pi,0,pi)              #angle mean
+kappa0 <- c(1,2,2)                    #angle concentration
+anglePar0 <- c(angleMean0,kappa0)
 
-#prepare data with moveHMM
-# trackData2 <- dataSample[,c(1,2,4,5)]
-# colnames(trackData2)[3] <- c("ID")
-# data3 <- prepData(trackData2,type="LL",coordNames=c("lon","lat"))
-# plot(data3,compact=T)
+#HMM fitting 3 states
+m5 <- fitHMM(data=data3,nbStates=3,stepPar0=stepPar0,anglePar0=anglePar0)
 
-#apply two state HMM
-## initial parameters for gamma and von Mises distributions
- mu0 <- c(0.1,1) # step mean (two parameters: one for each state)
- sigma0 <- c(0.1,1) # step SD
- stepPar0 <- c(mu0,sigma0)
- angleMean0 <- c(pi,0) # angle mean
- kappa0 <- c(1,1) # angle concentration
- anglePar0 <- c(angleMean0,kappa0)
+# fit a 3 state model with covariate included
+m6 <- fitHMM(data=data3,nbStates=3,stepPar0=stepPar0,anglePar0=anglePar0,
+             formula=~charnock) 
 
- m1 <- fitHMM(data=data3,nbStates=2,stepPar0=stepPar0,anglePar0=anglePar0,
-             formula=~1) # no covariate
- m2 <- fitHMM(data=data3,nbStates=2,stepPar0=stepPar0,anglePar0=anglePar0,
-             formula=~chloro) # covariate 'chlorophyll'
+# look at the output of each model and plot it
+m5
+plot(m5)
+m6
+plot(m6)
 
-## Model selection using the AIC
-# print(AIC(m1,m2))
-
- m1
- plot(m1)
- m2
- plot(m2)
-
-# Plotting HMM states on map 
- library(rgdal)
+# compare AIC scores of the 2 models 
+print(AIC(m5,m6))
  
- lldata <- data.frame(ID=data3$ID,x=attr(data3,"coords")[,4],
-                      y=attr(data3,"coords")[,5])
- 
- lldata <- data.frame(ID=data3$ID,x=data3$x,
-                      y=data3$y)
- 
- plotSat(data3,zoom=8)
- 
+
+# ----------------------------------------------------------------------------------------
+#initial parameters for distributions (model with 4 states)
+# ----------------------------------------------------------------------------------------
+mu0 <- c(0.1,1,2,3)          #step mean
+sigma0 <- c(0.01,0.1,10,1)      #step SD
+#zeromass0 <- c(0.2,0.1,0.1,0.1) #step zero-mass
+stepPar0 <- c(mu0,sigma0)
+angleMean0 <- c(0,pi,0,pi)      #angle mean
+kappa0 <- c(1,1,2,2)            #angle concentration
+anglePar0 <- c(angleMean0,kappa0)
+
+#HMM fitting 4 states
+m7 <- fitHMM(data=data3,nbStates=4,stepPar0=stepPar0,anglePar0=anglePar0)
+m7
+plot(m7)
+
+# compare AIC scores of the 2 models 
+print(AIC(m5,m7))
+
  #--------------------------------------------------------------------------------
  # convert into a 'move' type file 
  #--------------------------------------------------------------------------------

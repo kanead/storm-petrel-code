@@ -1,3 +1,6 @@
+library(rWind)
+
+
 setwd("C:\\Users\\akane\\Desktop\\Science\\Manuscripts\\Storm Petrels\\Tracking Data")
 data <- read.table("combinedData.csv", header=T,sep=",")
 head(data)
