@@ -60,7 +60,7 @@ irishdata<-irishdata[irishdata$lat < 54.5, ]
 # High Island coordinates 53.5464, -10.2572	
 # there are 2 other functions to measure spatial distance in the geosphere package but they give the same values
 myfuncCosineIre<-function(x){max(distCosine(c(-10.2572,53.5464), cbind(x$lon, x$lat)))/1000}
-sapply(split(irishdata[2:1],irishdata$ID), myfuncCosine)
+sapply(split(irishdata[2:1],irishdata$ID), myfuncCosineIre)
 
 # split up Scottish data
 scottishdata <- data[data$location=="scotland" , ]
@@ -145,24 +145,52 @@ write.table(df, file = "subsetTracks30MinInterpolation.csv", row.names=F, sep=",
 # read dataframe back in with remote sensing data appended from Movebank for chlorophyll
 # ----------------------------------------------------------------------------------------
 setwd("C:\\Users\\akane\\Desktop\\Science\\Manuscripts\\Storm Petrels\\Tracking Data\\subsetTracks30MinInterpolation- 8 Day Chlorophyll")
-df<-read.csv("subsetTracks30MinInterpolation-8770236889496130104.csv",header=T,sep=",")
+df<-read.csv("subsetTracks30MinInterpolationLandMod.csv",header=T,sep=",")
 
 # rename columns
-names(df)[names(df) == 'MODIS.Ocean.Aqua.OceanColor.4km.8d.Chlorophyll.A'] <- 'chloro'
+names(df)[names(df) == 'MODIS.Ocean.Aqua.OceanColor.4km.Monthly.Chlorophyll.A'] <- 'chloro'
 names(df)[names(df) == 'location.long'] <- 'lon'
 names(df)[names(df) == 'location.lat'] <- 'lat'
 names(df)[names(df) == 'tag.local.identifier'] <- 'ID'
+
+# split up data by location - Ireland or Scotland 
+df <- df[df$location=="Scotland" , ] 
+df<-droplevels(df)
+
+# trim the last few rows to remove the hugh chlorophyll point for the Scottish data
+#df<-head(df,-5)
+
+### standardize covariate values
+df$chloro <-
+  (df$chloro-mean(na.omit(df$chloro)))/sd(na.omit(df$chloro))
+
+# count the number of relocations for each bird 
+# sapply(split(df$lat,df$ID),length)
+# drop the birds that have fewer than x relocations 
+# df <- df[!(as.numeric(df$ID) %in% which(table(df$ID)<20)),]
+# df <- droplevels(df)
 
 # prepare data with moveHMM
 trackData2 <- df[,c(4,5,8,11)]
 head(trackData2)
 data3 <- prepData(trackData2,type="LL",coordNames=c("lon","lat"))
+# remove NAs that are messing with Scottish data
+# data3[complete.cases(data3),]
 plot(data3,compact=T)
+
 
 #apply two state HMM
 # initial parameters for gamma and von Mises distributions
-mu0 <- c(0.1,1) # step mean (two parameters: one for each state)
-sigma0 <- c(0.1,1) # step SD
+#mu0 <- c(0.1,1) # step mean (two parameters: one for each state)
+#sigma0 <- c(0.1,1) # step SD
+#stepPar0 <- c(mu0,sigma0)
+#angleMean0 <- c(pi,0) # angle mean
+#kappa0 <- c(1,1) # angle concentration
+#anglePar0 <- c(angleMean0,kappa0)
+
+# alternative initial parameters Enrico
+mu0 <- c(1,5) # step mean (two parameters: one for each state)
+sigma0 <- c(1,3) # step SD
 stepPar0 <- c(mu0,sigma0)
 angleMean0 <- c(pi,0) # angle mean
 kappa0 <- c(1,1) # angle concentration
@@ -186,14 +214,24 @@ plot(m2)
 ## Model selection using the AIC
 print(AIC(m1,m2))
 
-#initial parameters for distributions (model with 3 states)
-mu0 <- c(0.1,1,1)                     #step mean
-sigma0 <- c(0.1,1,1)                  #step SD
-#zeromass0 <- c(0.2,0.1,0.1)           #step zero-mass
+# alternative initial parameters for distributions (model with 3 states)
+#mu0 <- c(1,5,10)                     #step mean
+#sigma0 <- c(1,5,3)                  #step SD
+##zeromass0 <- c(0.2,0.1,0.1)           #step zero-mass
+#stepPar0 <- c(mu0,sigma0)
+#angleMean0 <- c(pi,0,pi)              #angle mean
+#kappa0 <- c(1,2,2)                    #angle concentration
+#anglePar0 <- c(angleMean0,kappa0)
+
+# initial parameters Enrico
+mu0 <- c(1,5,10)
+sigma0 <- c(1,3,3)
 stepPar0 <- c(mu0,sigma0)
-angleMean0 <- c(pi,0,pi)              #angle mean
-kappa0 <- c(1,2,2)                    #angle concentration
+angleMean0 <- c(pi,0,pi)
+kappa0 <- c(1,2,2)
 anglePar0 <- c(angleMean0,kappa0)
+
+
 
 #HMM fitting 3 states
 m3 <- fitHMM(data=data3,nbStates=3,stepPar0=stepPar0,anglePar0=anglePar0)
@@ -208,6 +246,7 @@ plot(m3)
 m4
 plot(m4)
 
+
 # compare AIC scores of the 4 models 
 print(AIC(m1,m2,m3,m4))
 
@@ -218,10 +257,12 @@ head(data3)
 
 # export the interpolated data with the Viterbi sequence 
 trackPlusViterbi <- data.frame(data3)
-write.table(trackPlusViterbi, file = "tracksPlusViterbi.csv", row.names=F, sep=",")
+# write.table(trackPlusViterbi, file = "IrishtracksPlusViterbi.csv", row.names=F, sep=",")
+# write.table(trackPlusViterbi, file = "ScottishtracksPlusViterbi.csv", row.names=F, sep=",")
 
 # load this data back in here if necessary 
-# data3 <- read.table("tracksPlusViterbi.csv", header=T,sep=",")
+data3 <- read.table("ScottishtracksPlusViterbi.csv", header=T,sep=",")
+head(data3)
 
 # plot the track with the viterbi sequence 
 plot(data3$x[data3$ID=="9080"],data3$y[data3$ID=="9080"], col=c("goldenrod3", "lightskyblue", "seagreen3")[data3$viterbi[data3$ID=="9080"]],
@@ -272,14 +313,15 @@ plot(ud)
 # here I've added the timestamp from df to data3 so I can associate the viterbi sequence with time
 data3$timeStamp<-df$timestamp
 head(data3)
-data3$timeStamp<-as.POSIXct(data3$timeStamp)
+data3$timeStamp<-as.POSIXct(data3$datetime)
 head(data3)
 # I only want the hour and minute portion of the timestamp
 data3$time<-format(data3$timeStamp, "%H")
 head(data3)
 
+# detach("package:dplyr", unload=TRUE) 
 library("ggplot2")
-library("plyr")
+library("dplyr")
 library("reshape2")
 library("scales")
 
@@ -407,8 +449,8 @@ print(AIC(m5,m6))
 # ----------------------------------------------------------------------------------------
 #initial parameters for distributions (model with 4 states)
 # ----------------------------------------------------------------------------------------
-mu0 <- c(0.1,1,2,3)          #step mean
-sigma0 <- c(0.01,0.1,10,1)      #step SD
+mu0 <- c(0.1,1,5,10)          #step mean
+sigma0 <- c(2,2,2,1)      #step SD
 #zeromass0 <- c(0.2,0.1,0.1,0.1) #step zero-mass
 stepPar0 <- c(mu0,sigma0)
 angleMean0 <- c(0,pi,0,pi)      #angle mean
@@ -418,14 +460,23 @@ anglePar0 <- c(angleMean0,kappa0)
 #HMM fitting 4 states
 m7 <- fitHMM(data=data3,nbStates=4,stepPar0=stepPar0,anglePar0=anglePar0)
 m7
+
+#HMM fitting 4 states with chloro
+m8 <- fitHMM(data=data3,nbStates=4,stepPar0=stepPar0,anglePar0=anglePar0,
+             formula=~chloro)
+m8
+
 plot(m7)
+plot(m8)
 
 # compare AIC scores of the 2 models 
-print(AIC(m5,m7))
+print(AIC(m7,m8))
 
  #--------------------------------------------------------------------------------
  # convert into a 'move' type file 
  #--------------------------------------------------------------------------------
+# the data should have a point at the start representing the colony location, not all of the 
+# tracks have this and are thus giving smaller than expected measures for travel distance
  movedata <- move(x=data$lon, y=data$lat,
                   time=data$DateTime,
                   data=data, proj=CRS("+proj=longlat +ellps=WGS84"), animal=data$ID)

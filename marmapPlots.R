@@ -94,7 +94,10 @@ legend("topright", legend = c("900", "902", "906", "908", "909", "910"), lwd = 1
 
 #
 # Plot viterbi sequence tracks on marmap background 
-df <- read.csv("tracksPlusViterbi.csv", header = T,sep = ",")
+# Irish
+df <- read.csv("IrishtracksPlusViterbi.csv", header = T,sep = ",")
+# Scottish 
+df <- read.csv("ScottishtracksPlusViterbi.csv", header = T,sep = ",")
 
 # remove tracks if you want to showcase a specific bird
 
@@ -132,12 +135,13 @@ plot(batIre, land = TRUE, image = TRUE, lwd = 0.2, bpal = list(c(min(batIre,na.r
 plot(batIre, deep = 0, shallow = 0, step = 0, lwd = 0.8, add = TRUE)
 
 ## Bathymetric map with gps tracks - Scottish 
-plot(batScot, land = TRUE, image = TRUE, lwd = 0.2, bpal = list(c(min(batScot,na.rm=TRUE), 0, blues), c(0, max(batScot, na.rm=TRUE), greys)), xlim=c(-8,6), ylim=c(56,62))
+plot(batScot, land = TRUE, image = TRUE, lwd = 0.2, bpal = list(c(min(batScot,na.rm=TRUE), 0, blues), c(0, max(batScot, na.rm=TRUE), greys)), xlim=c(-4,1), ylim=c(58,62))
 plot(batScot, deep = 0, shallow = 0, step = 0, lwd = 0.8, add = TRUE)
 
 points(df[df$viterbi=="2",], col = "lightskyblue" ,pch = 16)
 points(df[df$viterbi=="3",], col = "seagreen3",pch = 16)
 points(df[df$viterbi=="1",], col = "goldenrod3",pch = 16)
+# points(df, col = "red",pch = 16)
 
 #lines(df[df$viterbi=="1",], col = "goldenrod3",lwd = 1.5)
 #lines(df[df$viterbi=="2",], col = "lightskyblue" ,lwd = 1.5)
@@ -145,3 +149,4 @@ points(df[df$viterbi=="1",], col = "goldenrod3",pch = 16)
 
 legend("topleft", legend = c("state 1", "state 2", "state 3"), col = c("goldenrod3", "lightskyblue", "seagreen3"), pch = 16, pt.cex = 0.5, bg="white")
 
+legend("topleft", legend = c("Resting", "Transiting", "Foraging"), col = c("goldenrod3", "lightskyblue", "seagreen3"), pch = 16, pt.cex = 0.5, bg="white")

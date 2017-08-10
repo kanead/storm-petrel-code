@@ -1,0 +1,105 @@
+---
+title: "Storm_Petrel_Foraging_Range"
+output:
+  pdf_document: default
+  html_notebook: default
+  html_document: default
+  word_document: default
+---
+
+######Pennycuick, C. J., Croxall, J. P., & Prince, P. A. (1984). Scaling of foraging radius and growth rate in petrels and albatrosses (Procellariiformes). Ornis Scandinavica, 145-154.
+
+
+
+####In their paper Pennycuick et al. (1984) describe a model to determine the power delivered to chicks of various Procellariiformes, which is the rate at which energy is delivered. Their model for this is:
+
+\[\huge P = \frac{2em}{T +\frac{2r}{V}}\]
+
+e = energy density of food
+
+m = the amount of food the bird can carry
+
+T = the time spent on the water
+
+r = foraging radius
+
+V = cross country speed
+
+#### thus the denominator has two components: T which is time on water, and 2r/v which is time spent flying (distance / speed)
+
+####They give values for Wilson's Storm Petrel as follows:
+
+e = 4.33 megajoules per kg
+
+m = 0.008 kg
+
+T = 24 hours
+
+r = 212 km
+
+V = 4.9 metres per second
+
+####These have to be converted into matching units first and then we can apply the function.
+
+```{r}
+# Wilson's Storm Petrel
+e<-4330 # energy in joules per gram
+m<-8 # stomach capacity in grams
+t<-86400 # time at sea in seconds
+r<-212000 # foraging radius in metres
+v<-4.9 # cross country speed in metres per second
+p<-.4 # power delivered to chick, this is the value we should get
+
+
+power <- function(e,m,t,r,v) {
+  
+ (2*e*m)/(t + (2*r)/v)
+}
+
+power(e,m,t,r,v)
+```
+####They relate their value of P to the basal metabolic rate (BMR) of the parents. During growth, the chick should receive some small multiple of the adult's BMR. 
+
+####We can rearrange their equation to get it in terms of foraging radius:
+
+\[\huge r = \frac{emv}{p}-\frac{tv}{2}\]
+
+```{r}
+radius<-function(e,m,v,p,t){
+(((e*m*v)/p) - ((t*v)/2))/1000
+}
+
+radius(e,m,v,p,t)
+```
+
+####We can also use values from the European Storm Petrel here as well. We're plotting radius as a function of power delivered to chick. Here the vertical line represents the case where the power delivered to the chick is the same as the BMR of the adults in Watts.The ration of delivered power for Wilson's Storm Petrel is 1.27 (0.401/0.315)
+
+#### For European Storm Petrels it is 1.27/ 0.269
+
+```{r}
+
+# use the function for radius where only one value can vary so we can plot it
+# in this case the measure of delivered power can vary with all else constant
+radiusPlot<-function(p){
+  (((4330*5*4.9)/p) - ((86400*4.9)/2))/1000
+}
+curve(radiusPlot, from=0.1, to=0.6, xlab="power (W)", ylab="radius (km)")
+abline(v = 0.269, lty = 2)
+```
+
+
+####Here we're plotting radius as a function of speed
+
+```{r}
+
+# use the function for radius where only one value can vary so we can plot it
+# in this case the measure of speed can vary with all else constant
+radiusPlot<-function(v){
+  (((4330*5*v)/0.269) - ((86400*v)/2))/1000
+}
+curve(radiusPlot, from=7, to=12.6, xlab="speed (m/s)", ylab="radius (km)")
+```
+
+
+
+
