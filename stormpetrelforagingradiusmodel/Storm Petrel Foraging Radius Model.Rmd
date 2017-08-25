@@ -1,0 +1,75 @@
+---
+title: "Storm Petrel Foraging Radius Model"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+This foraging radius model is based on this paper: "How to Live in Colonies: Foraging Range and Patterns of Density around a Colony of Black-Headed Gulls Larus ridibundus in Relation to the Gulls' Energy Budget"
+
+The authors create a model that gives the estimated foraging range for gulls but we can use it for Storm Petrels to explore how they manage to range so far out. 
+
+The model is:
+
+\[\huge{R=\frac{V.q_f.L}{2.E}}\]
+
+where $E=(1-q_f)E_r+q_fE_f+E_j$
+
+The components that make up the model are $R$ which is the radius; $V$ which is the velocity of the bird in metres per second; $qf$ which is the proportion of time flying; $L$ which is the energetic load the bird can carry in Joules; $E_f$ which is the energetic cost of flight in Watts; $E_r$ which is the cost of other activities e.g. roosting and is also in Watts and finally $E_j$ which is the energy expenditure of the nestlings in watts. 
+
+There isn't a lot of data on the energetics for European Storm Petrels but we do have information on Leach's and Wilson's which can be used as proxies. 
+
+We know that the cost of being away from the nest for Wilson's is 1.82 Watts and the cost of being on the nest is 0.94 Watts. We can choose the lower end of the range for these values because European Storm Petrels are smaller than Wilson's giving 1.04 Watts and 0.68 Watts for birds away from and on the nest respectively. The rate of energy delivered to the chick is 0.95 Watts. 
+
+From one of our long ranging birds that we tracked we recorded an average speed of 4.6m/s and a max speed of 11.2 m/s. This bird movement ~ 340km away from its colony. The proportion of time spent flying for these birds must be quite hight once their away from the nest and certainly well in excess of the 5% suggested in the original paper for Black-headed gulls. 
+
+A European Storm Petrel has a capacity to hold ~ 5 grams of food which has an energy density of 4330 Joules per gram. Also relevant is the gut passage time of Wilson's storm-petrel, which is ~ 12 hours. 
+
+We can build up the model using these components. 
+
+```{r}
+Er <- 0.68#  Watts - energetic cost of other activites 
+V <- 4.9 #  metres per second - flight speed 
+Ej <- 0.95 # Watts - energy expenditure of juveniles
+qf <- 0.95# 0.05 # proprtion of time flying
+L <-  21650 #  load size in joules * energy density of food
+Ef <- 1.04 # watts - energy expenditure during flight
+
+petrelRadius <- function(qf,Er,Ef,Ej,V,L){
+  R = (V * L * qf) / (2 * ((1-qf)*Er + (qf*Ef) + Ej))
+  return(R/1000) # return in km 
+}
+
+petrelRadius(qf,Er,Ef,Ej,V,L)
+
+```
+
+This value is clearly way too small so we can vary the components and see which one has the biggest effect on foraging range. The following graph shows the case where we vary the amount of energy the bird consumes. The max is set by the gut passage time and what we know of foraging time, which is in excess of 60 hours, thus the bird should have enough time to eat four meals. 
+
+```{r}
+petrelRadius <- function(L){
+  R = (4.9 * L * 0.95) / (2 * ((1-0.95)*0.68 + (0.95*1.04) + 0.95))
+  return(R/1000) # return in km 
+}
+curve(petrelRadius, from=21650, to=86600, xlab="Energetic load (Watts)", ylab="radius (km)")
+```
+
+Here we can remove the cost of the chick by setting $E_j$ = 0 and again increase the number of meals the adult can gain. 
+
+```{r}
+petrelRadius <- function(L){
+  R = (4.9 * L * 0.95) / (2 * ((1-0.95)*0.68 + (0.95*1.04) + 0))
+  return(R/1000) # return in km 
+}
+curve(petrelRadius, from=21650, to=86600, xlab="Energetic load (Watts) with no cost of chick", ylab="radius (km)")
+```
+
+Other changes seem to have a much smaller effect on foraing range so the birds must be eating multiple times to get out to some distant feeding ground. E.g. here is the case where we vary flight speed from the average (4.9 m/s) to the max (11.2 m/s) while restricting the bird to one load of food. 
+
+```{r}
+petrelRadius <- function(V){
+  R = (V * 21650 * 0.95) / (2 * ((1-0.95)*0.68 + (0.95*1.04) + 0.95))
+  return(R/1000) # return in km 
+}
+curve(petrelRadius, from=4.9, to=11.2, xlab="flight speed (m/s)", ylab="radius (km)")
+```
