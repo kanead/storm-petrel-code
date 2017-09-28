@@ -1,5 +1,5 @@
 #--------------------------------------------------------------------------------
-# Storm Petrel Movement Code Scottish Data Monthly Chlorophyll
+# Storm Petrel Movement Code Irish Data Monthly Chlorophyll
 #--------------------------------------------------------------------------------
 # clean everything first
 rm(list=ls())
@@ -13,7 +13,7 @@ df<-read.csv("subsetTracks30MinInterpolation-monthlyChloroBath.csv",header=T,sep
 
 # rename columns
 names(df)[names(df) == 'ETOPO1.Elevation'] <- 'bath'
-names(df)[names(df) == 'MODIS.Ocean.Aqua.OceanColor.4km.Monthly.Chlorophyll.A'] <- 'chloro'
+names(df)[names(df) == 'MODIS.Ocean.Aqua.OceanColor.4km.8d.Chlorophyll.A'] <- 'chloro'
 names(df)[names(df) == 'location.long'] <- 'lon'
 names(df)[names(df) == 'location.lat'] <- 'lat'
 names(df)[names(df) == 'tag.local.identifier'] <- 'ID'
@@ -26,12 +26,13 @@ df<-group_by(df, ID) %>%
   select(-first2)
 length(df$ID)
 
+
 # remove NAs chlorophyll values
 df <- df %>%
   dplyr:: mutate(chloro = ifelse(is.na(chloro),0,chloro))
 
-  df<-group_by(df, ID) %>%
-    dplyr::mutate(first2 = min(which(chloro == 0 | row_number() == n()))) %>%
+df<-group_by(df, ID) %>%
+  dplyr::mutate(first2 = min(which(chloro == 0 | row_number() == n()))) %>%
   filter(row_number() <= first2) %>%
   select(-first2)
 length(df$ID)
@@ -44,7 +45,7 @@ length(df$ID)
 
 # split up data by location - Ireland or Scotland 
 df<-data.frame(df)
-df <- df[df$lon>-3 , ] 
+df <- df[df$location=="Ireland" , ] 
 df<-droplevels(df)
 
 # convert times from factors to POSIX
@@ -53,7 +54,7 @@ df$date<-as.POSIXct(df$date, format= "%d/%m/%Y %H:%M", tz = "GMT")
 head(df)
 
 # prepare data with moveHMM
-stormData <- df[,c(4,5,8,11,13,14)]
+stormData <- df[,c(4,5,8,13,17)]
 head(stormData)
 stormData <- prepData(stormData,type="LL",coordNames=c("lon","lat"))
 # plot(stormData,compact=T)
@@ -153,50 +154,33 @@ m8 <- fitHMM(data = stormData, nbStates = 3, dist = dist, Par0 = Par0_m8$Par,
              beta0 = Par0_m8$beta, DM = DM, stateNames = stateNames,
              formula = formula)
 
-# plot(m8, plotCI = TRUE, covs = data.frame(hour=10))
 AIC(m1,m2,m3,m4,m5,m6,m7,m8)
 
 # compute the pseudo-residuals
-pr <- pseudoRes(m8)
+pr <- pseudoRes(m4)
 # time series, qq-plots, and ACF of the pseudo-residuals
-plotPR(m8,title("m8"))
+plotPR(m4,title("m4"))
 
 # Saving R objects
-saveRDS(m1, "m1.rds")
-saveRDS(m2, "m2.rds")
-saveRDS(m3, "m3.rds")
-saveRDS(m4, "m4.rds")
-saveRDS(m5, "m5.rds")
-saveRDS(m6, "m6.rds")
-saveRDS(m7, "m7.rds")
-saveRDS(m8, "m8.rds")
-# Load the object
-setwd("C:\\Users\\akane\\Desktop\\Science\\Manuscripts\\Storm Petrels\\Tracking Data\\30minBathChloro\\Scottish Models")
+saveRDS(m1, "m1Ire.rds")
+saveRDS(m2, "m2Ire.rds")
+saveRDS(m3, "m3Ire.rds")
+saveRDS(m4, "m4Ire.rds")
+saveRDS(m5, "m5Ire.rds")
+saveRDS(m6, "m6Ire.rds")
+saveRDS(m7, "m7Ire.rds")
+saveRDS(m8, "m8Ire.rds")
 
-m1 <- readRDS("m1.rds")
-m2 <- readRDS("m2.rds")
-m3 <- readRDS("m3.rds")
-m4 <- readRDS("m4.rds")
-m5 <- readRDS("m5.rds")
-m6 <- readRDS("m6.rds")
-m7 <- readRDS("m7.rds")
-m8 <- readRDS("m8.rds")
 
-plot(m8,covs = data.frame(hour = 17)) # 1-2
-plot(m8,covs = data.frame(hour = 20)) # 1-2 and 2-3
+plot(m4,covs = data.frame(hour = 4)) # 1-2
 
-states <- viterbi(m5)
+
+states <- viterbi(m4)
 table(states)/length(states)
-
 stormData$states <- states
+
 boxplot(stormData$chloro~stormData$states)
 boxplot(stormData$bath~stormData$states)
-
-boxplot(stormData$hour~stormData$states)
-
-plot(stormData$hour~stormData$states==2)
-
-
 
 stormData %>% 
   as.data.frame() %>% 

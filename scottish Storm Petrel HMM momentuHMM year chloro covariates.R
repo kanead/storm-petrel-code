@@ -1,5 +1,5 @@
 #--------------------------------------------------------------------------------
-# Storm Petrel Movement Code Scottish Data Monthly Chlorophyll
+# Storm Petrel Movement Code 
 #--------------------------------------------------------------------------------
 # clean everything first
 rm(list=ls())
@@ -8,12 +8,12 @@ library(momentuHMM)
 library(rgdal)
 library(dplyr)
 
-setwd("C:\\Users\\akane\\Desktop\\Science\\Manuscripts\\Storm Petrels\\Tracking Data\\30minBathChloro")
-df<-read.csv("subsetTracks30MinInterpolation-monthlyChloroBath.csv",header=T,sep=",")
+setwd("C:\\Users\\akane\\Desktop\\Science\\Manuscripts\\Storm Petrels\\Tracking Data\\subsetTracks30MinInterpolation-year chloro")
+df<-read.csv("subsetTracks30MinInterpolation-year chloro.csv",header=T,sep=",")
 
 # rename columns
 names(df)[names(df) == 'ETOPO1.Elevation'] <- 'bath'
-names(df)[names(df) == 'MODIS.Ocean.Aqua.OceanColor.4km.Monthly.Chlorophyll.A'] <- 'chloro'
+names(df)[names(df) == 'MODIS.Ocean.Aqua.OceanColor.4km.Yearly.Chlorophyll.A'] <- 'chloro'
 names(df)[names(df) == 'location.long'] <- 'lon'
 names(df)[names(df) == 'location.lat'] <- 'lat'
 names(df)[names(df) == 'tag.local.identifier'] <- 'ID'
@@ -26,15 +26,6 @@ df<-group_by(df, ID) %>%
   select(-first2)
 length(df$ID)
 
-# remove NAs chlorophyll values
-df <- df %>%
-  dplyr:: mutate(chloro = ifelse(is.na(chloro),0,chloro))
-
-  df<-group_by(df, ID) %>%
-    dplyr::mutate(first2 = min(which(chloro == 0 | row_number() == n()))) %>%
-  filter(row_number() <= first2) %>%
-  select(-first2)
-length(df$ID)
 
 sapply(split(df$lat,df$ID),length)
 # drop the birds that have fewer than x relocations 
@@ -53,7 +44,8 @@ df$date<-as.POSIXct(df$date, format= "%d/%m/%Y %H:%M", tz = "GMT")
 head(df)
 
 # prepare data with moveHMM
-stormData <- df[,c(4,5,8,11,13,14)]
+names(df)
+stormData <- df[,c(4,5,8,11,12)]
 head(stormData)
 stormData <- prepData(stormData,type="LL",coordNames=c("lon","lat"))
 # plot(stormData,compact=T)
@@ -92,10 +84,9 @@ m3 <- fitHMM(data = stormData, nbStates = 2, dist = dist, Par0 = Par0_m3$Par,
              beta0=Par0_m3$beta, stateNames = stateNames, formula=formula,retryFits = 1)
 #plot(m3)
 #plot(m3,covs = data.frame(chloro=3))
-#plot(m3,covs = data.frame(hour=8))
+#plot(m3,covs = data.frame(hour=1))
 
 # plot(m3,covs = data.frame(hour=10))
-#plot(m3,covs = data.frame(chloro=2, hour = 9))
 
 # formulas for parameters of state-dependent observation distributions
 DM <- list(step = list(mean = ~ chloro * cosinor(hour, period = 24),
@@ -108,6 +99,8 @@ Par0_m4 <- getPar0(model=m3, formula=formula, DM=DM)
 m4 <- fitHMM(data = stormData, nbStates = 2, dist = dist, Par0 = Par0_m4$Par,
              beta0 = Par0_m4$beta, DM = DM, stateNames = stateNames,
              formula = formula)
+
+#plot(m4,covs = data.frame(chloro=2, hour = 0))
 
 # label 3 states
 stateNames <- c("exploratory", "encamped", "resting")
@@ -182,9 +175,6 @@ m6 <- readRDS("m6.rds")
 m7 <- readRDS("m7.rds")
 m8 <- readRDS("m8.rds")
 
-plot(m8,covs = data.frame(hour = 17)) # 1-2
-plot(m8,covs = data.frame(hour = 20)) # 1-2 and 2-3
-
 states <- viterbi(m5)
 table(states)/length(states)
 
@@ -192,22 +182,3 @@ stormData$states <- states
 boxplot(stormData$chloro~stormData$states)
 boxplot(stormData$bath~stormData$states)
 
-boxplot(stormData$hour~stormData$states)
-
-plot(stormData$hour~stormData$states==2)
-
-
-
-stormData %>% 
-  as.data.frame() %>% 
-  group_by(states, hour) %>% 
-  dplyr::summarise(n = n()) %>% 
-  ggplot(aes(hour, y = factor(states), fill = n)) + 
-  geom_raster() +
-  scale_fill_continuous('Count', low = 'white', high = 'darkgreen', guide = 'legend') +
-  scale_x_continuous(expand = c(0, 0), breaks = c(1,seq(0, 25, 1), 24)) +
-  ylab('State') + 
-  xlab('Hour') +
-  coord_fixed() +
-  theme(legend.position = 'top',
-        legend.key.height = unit(.2, 'cm'))
