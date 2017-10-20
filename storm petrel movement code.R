@@ -479,7 +479,7 @@ print(AIC(m7,m8))
 # tracks have this and are thus giving smaller than expected measures for travel distance
  movedata <- move(x=data$lon, y=data$lat,
                   time=data$DateTime,
-                  data=data, proj=CRS("+proj=longlat +ellps=WGS84"), animal=data$ID)
+                  data=data, proj=CRS("+proj=longlat +datum=WGS84"), animal=data$ID)
  movedata
  summary(movedata)
  show(movedata)
@@ -495,6 +495,12 @@ print(AIC(m7,m8))
  angleSummary(movedata)
  # The time.lag function calculates the time lags between locations
  timeLag(movedata, units="mins")
+ 
+# Store a track as a KML file
+#install.packages('plotKML')
+require(plotKML)
+kml(movedata)
+ 
  
  #--------------------------------------------------------------------------------
  # Plot Data 

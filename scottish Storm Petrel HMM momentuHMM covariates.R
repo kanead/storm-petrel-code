@@ -171,7 +171,7 @@ saveRDS(m6, "m6.rds")
 saveRDS(m7, "m7.rds")
 saveRDS(m8, "m8.rds")
 # Load the object
-setwd("C:\\Users\\akane\\Desktop\\Science\\Manuscripts\\Storm Petrels\\Tracking Data\\30minBathChloro\\Scottish Models")
+setwd("C:\\Users\\akane\\Desktop\\Science\\Manuscripts\\Storm Petrels\\Tracking Data\\30minBathChloro\\Scottish Models\\monthly chloro")
 
 m1 <- readRDS("m1.rds")
 m2 <- readRDS("m2.rds")
