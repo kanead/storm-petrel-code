@@ -43,8 +43,8 @@ scottishdata<-droplevels(scottishdata)
 # stormData<-rbind(scottishdata,irishdata)
 # or select one country's tracks 
 # stormData<-irishdata[irishdata$ID==908,]
-stormData<-scottishdata
-# stormData<-irishdata
+# stormData<-scottishdata
+ stormData<-irishdata
 
 # count the number of relocations for each bird 
 sapply(split(stormData$lat,stormData$ID),length)
@@ -92,7 +92,7 @@ names(stormData)[names(stormData) == 'ID2'] <- 'ID'
 # project to UTM coordinates using package rgdal
 llcoord <- SpatialPoints(stormData[,1:2],
                          proj4string=CRS("+proj=longlat +datum=WGS84"))
-utmcoord <- spTransform(llcoord,CRS("+proj=utm + ellps=WGS84")) # 29 = IRE or 30 = UK
+utmcoord <- spTransform(llcoord,CRS("+proj=utm +zone=29 ellps=WGS84")) # 29 = IRE or 30 = UK
 # add UTM locations to data frame
 stormData$x <- attr(utmcoord,"coords")[,1]
 stormData$y <- attr(utmcoord,"coords")[,2]
@@ -118,6 +118,25 @@ inits <- list(a = c(stormData$x[1],0,stormData$y[1],0),
 crwOut <- crawlWrap(obsData=stormData, timeStep="30 mins", initial.state=inits,
                     theta=c(10,-4), fixPar=c(NA,NA), retryFits = 10)
 
+IrishCRW <- momentuHMM::prepData(data=crwOut)
 
+IrishCRW$datePlusOne<-IrishCRW$time + days(1)
+IrishCRW$dateMinusOne<-IrishCRW$time - days(1)
+
+IrishCRW$datePlusTwo<-IrishCRW$time + days(2)
+IrishCRW$dateMinusTwo<-IrishCRW$time - days(2)
+
+IrishCRW$datePlusThree<-IrishCRW$time + days(3)
+IrishCRW$dateMinusThree<-IrishCRW$time - days(3)
+
+IrishCRW$datePlusFour<-IrishCRW$time + days(4)
+IrishCRW$dateMinusFour<-IrishCRW$time - days(4)
+
+IrishCRW$datePlusFive<-IrishCRW$time + days(5)
+IrishCRW$dateMinusFive<-IrishCRW$time - days(5)
+
+head(IrishCRW)
+
+write.table(IrishCRW, file="IrishCRW.csv",sep = ",")
 
 
