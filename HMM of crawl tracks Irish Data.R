@@ -4,6 +4,10 @@
 # clean everything first
 rm(list=ls())
 library(momentuHMM)
+library(dplyr)
+library(marmap)
+library(ggplot2)
+
 setwd("C:\\Users\\akane\\Desktop\\Science\\Manuscripts\\Storm Petrels\\Tracking Data\\crawl SP-Movebank")
 stormData <- read.csv("crawl SP Irish.csv",header = T , sep = ",")
 head(stormData)
@@ -170,11 +174,10 @@ library(ggplot2)
 newdata$states <- as.factor(newdata$states)
 p <- ggplot(newdata, aes(x=states, y=hour, fill=states)) + 
   geom_violin(trim=TRUE, adjust = 1) + geom_boxplot(width=0.1, fill="white") +
-  scale_x_discrete(labels = c('exploratory','foraging','resting'))
+  scale_x_discrete(labels = c('transiting','foraging','resting'))
 p + theme_set(theme_gray(base_size = 20))+
   coord_flip() + scale_fill_manual(values=c("#DAA520", "#87CEFA", "#006400"))+
   theme(legend.position="none") # Remove legend
-
 #goldenrod3
 #lightskyblue
 #darkgreen
@@ -191,6 +194,11 @@ hr <- kernel.area(kud, percent = 95)
 hr
 image(kud)
 
+# calculate MCP 
+cp <- mcp(sp_df, percent=95, unout = "km2")
+plot(sp_df, add=TRUE)
+cp
+
 # subset the data for state 2 alone 
 sp_df2 <- newdata[newdata$states ==2, ]
 sp_df2<-data.frame(sp_df2)
@@ -201,4 +209,54 @@ kud2 <- kernelUD(sp_df2, grid = 200, same4all=TRUE)
 hr2 <- kernel.area(kud2, percent = 95)
 hr2
 image(kud2)
+
+# calculate MCP 
+cp2 <- mcp(sp_df2, percent=95, unout = "km2")
+plot(sp_df2, add=TRUE)
+cp2
+
+# is the state 2 area (95% MCP) smaller than the stage 1?
+cp$area-cp2$area
+########################################################################
+# Plot a track using the states to color code 
+########################################################################
+plotdata <- newdata[newdata$ID %in% c(9080, 9081), ]
+plotdata<-droplevels(plotdata)
+head(plotdata)
+# match it to example data
+myvars <- c("lon", "lat","states")
+plotdata <- plotdata[myvars]
+head(plotdata)
+library(mapproj)
+# Download bathymetric data and save on disk - Irish 
+batIre <- getNOAA.bathy(-16,-5.5, 51, 56, res = 1, keep = TRUE)
+
+# Select colours
+blues <- c("lightsteelblue4", "lightsteelblue3", "lightsteelblue2", "lightsteelblue1")
+greys <- c(grey(0.6), grey(0.93), grey(0.99))
+
+plot(batIre, land = TRUE, image = TRUE, lwd = 0.2, bpal = list(c(min(batIre,na.rm=TRUE), 0, blues), c(0, max(batIre, na.rm=TRUE), greys)), ylim=c(51,56))
+plot(batIre, deep = 0, shallow = 0, step = 0, lwd = 0.8, add = TRUE)
+
+color_pallete_function <- colorRampPalette(
+  colors = c("#DAA520", "#87CEFA", "#006400"),
+  space = "Lab" # Option used when colors do not represent a quantitative scale
+)
+
+autoplot(batIre, geom=c("r", "c")) +
+  scale_fill_gradient2(low="dodgerblue4", mid="gainsboro", high="darkgreen")
+# p1$plot + geom_line(data = track1, mapping = aes_string(x='lon', y='lat'), inherit.aes = F)
+
+last_plot() + geom_point(aes(x=lon, y=lat, colour=factor(states)), data=plotdata, alpha=1, size =2)
+
+last_plot() + theme(legend.position="none")
+
+last_plot() + labs(x = "longitude", y = "latitude")
+
+last_plot() + scale_fill_etopo()
+
+last_plot()  + scale_color_manual(values=c("#DAA520", "#87CEFA", "#006400"))
+
+last_plot()  +  legend("topleft", legend = c("Transiting", "Foraging", "Resting"), 
+                       col = c("#DAA520", "#87CEFA", "#006400"), pch = 16, pt.cex = 0.5, bg="white")
 

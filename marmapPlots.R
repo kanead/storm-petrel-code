@@ -6,10 +6,11 @@ rm(list=ls())
 
 # Load package
 library(marmap)
+library(ggplot2)
 
 # load tracking data
-
 setwd("C:\\Users\\akane\\Desktop\\Science\\Manuscripts\\Storm Petrels\\Tracking Data")
+#setwd("C:\\Users\\akane\\Desktop\\Science\\Manuscripts\\Storm Petrels\\Tracking Data")
 data <- read.table("combinedData.csv", header=T,sep=",")
 head(data)
 data<-data[,c("Latitude","Longitude","DateTime", "BirdID","location")]
@@ -27,18 +28,6 @@ length(data$lat)
 data<-data[complete.cases(data),]
 length(data$lat)
 
-# select the Irish data only 
-irishdata <- data[data$location=="ireland" , ] 
-irishdata<-droplevels(irishdata)
-irishdata<-irishdata[irishdata$lat < 54.5, ]
-
-# rename it 
-track1<-irishdata
-# match it to example data
-myvars <- c("lon", "lat","ID")
-track1 <- track1[myvars]
-head(track1)
-
 # select Scottish data only 
 scottishdata <- data[data$location=="scotland" , ] 
 scottishdata<-droplevels(scottishdata)
@@ -50,7 +39,19 @@ myvars <- c("lon", "lat","ID")
 track1 <- track1[myvars]
 head(track1)
 
+# select the Irish data only 
+irishdata <- data[data$location=="ireland" , ] 
+irishdata<-droplevels(irishdata)
+irishdata<-irishdata[irishdata$lat < 54.5, ]
 
+# rename it 
+track2<-irishdata
+# match it to example data
+myvars <- c("lon", "lat","ID")
+track2 <- track2[myvars]
+head(track2)
+
+library(mapproj)
 # Download bathymetric data and save on disk - Irish 
 batIre <- getNOAA.bathy(-16,-5.5, 51, 56, res = 1, keep = TRUE)
 
@@ -59,11 +60,11 @@ batScot <- getNOAA.bathy(-8,6, 56, 62, res = 1, keep = TRUE)
 
 # Get depth profile along both tracks and remove positive depths (since random fake values can be on land)
 # path.profile() gets depth value for all cells of the bathymetric grid below the gps tracks
-path1 <- path.profile(track1[,-3], bat) ; path1 <- path1[-path1[,4]>0,]
+path1 <- path.profile(track1[,-3], batScot) ; path1 <- path1[-path1[,4]>0,]
 
 # Get depth values for each gps tracking point
 # get.depth() retrieve depth values only for gps tracking points
-depth1 <- get.depth(bat, track1$lon, track1$lat, locator = FALSE, distance = TRUE) 
+depth1 <- get.depth(batScot, track1$lon, track1$lat, locator = FALSE, distance = TRUE) 
 
 # Add depth values to tracks 1 and 2 and remove positive depths
 track1$depth <- depth1$depth ; track1 <- track1[-track1$depth > 0,]
@@ -79,74 +80,57 @@ greys <- c(grey(0.6), grey(0.93), grey(0.99))
 plot(batScot, land = TRUE, image = TRUE, lwd = 0.2, bpal = list(c(min(batScot,na.rm=TRUE), 0, blues), c(0, max(batScot, na.rm=TRUE), greys)), ylim=c(56,62))
 plot(batScot, deep = 0, shallow = 0, step = 0, lwd = 0.8, add = TRUE)
 
+# Scottish Tracks 
+color_pallete_function <- colorRampPalette(
+  colors = c("red", "orange", "blue"),
+  space = "Lab" # Option used when colors do not represent a quantitative scale
+)
+
+autoplot(batScot, geom=c("r", "c")) +
+  scale_fill_gradient2(low="dodgerblue4", mid="gainsboro", high="darkgreen")
+# p1$plot + geom_line(data = track1, mapping = aes_string(x='lon', y='lat'), inherit.aes = F)
+
+last_plot() + geom_point(aes(x=lon, y=lat, colour=factor(ID)), data=track1, alpha=0.5)
+
+last_plot() + theme(legend.position="none")
+
+last_plot() + labs(x = "longitude", y = "latitude")
+
+last_plot() + scale_fill_etopo()
+
+# set aesthetics
+#autoplot(batScot, geom=c("r", "c"), colour="white", size=0.1)
+
+# topographical colour scale, see ?scale_fill_etopo
+#autoplot(batScot, geom=c("r", "c"), colour="white", size=0.1) + scale_fill_etopo()
+
+##############################################################################################################
 ## Bathymetric map with gps tracks - Irish
+##############################################################################################################
 plot(batIre, land = TRUE, image = TRUE, lwd = 0.2, bpal = list(c(min(batIre,na.rm=TRUE), 0, blues), c(0, max(batIre, na.rm=TRUE), greys)), ylim=c(51,56))
 plot(batIre, deep = 0, shallow = 0, step = 0, lwd = 0.8, add = TRUE)
 
-lines(track1[track1$ID=="900",], col = "purple",lwd = 1.5 )
-lines(track1[track1$ID=="902",], col = "red" ,lwd = 1.5 )
-lines(track1[track1$ID=="906",], col = "blue",lwd = 1.5 )
-lines(track1[track1$ID=="908",], col = "green4",lwd = 1.5 )
-lines(track1[track1$ID=="909",], col = "orange",lwd = 1.5 )
-lines(track1[track1$ID=="910",], col = "cyan",lwd = 1.5 )
-lines(track1, col = "red",lwd = 1.5 )
-legend("topright", legend = c("900", "902", "906", "908", "909", "910"), lwd = 1, col = c("purple", "red", "blue", "green4", "orange", "yellow4"), pch = 1, pt.cex = 0.5, bg="white")
 
-#
-# Plot viterbi sequence tracks on marmap background 
-# Irish
-df <- read.csv("IrishtracksPlusViterbi.csv", header = T,sep = ",")
-# Scottish 
-df <- read.csv("ScottishtracksPlusViterbi.csv", header = T,sep = ",")
+# Irish Tracks 
+color_pallete_function <- colorRampPalette(
+  colors = c("red", "orange", "blue"),
+  space = "Lab" # Option used when colors do not represent a quantitative scale
+)
 
-# remove tracks if you want to showcase a specific bird
+autoplot(batIre, geom=c("r", "c")) +
+  scale_fill_gradient2(low="dodgerblue4", mid="gainsboro", high="darkgreen")
+# p1$plot + geom_line(data = track1, mapping = aes_string(x='lon', y='lat'), inherit.aes = F)
 
-# keep track 9080 only for Irish example 
-idx<-c("9080")
+last_plot() + geom_point(aes(x=lon, y=lat, colour=factor(ID)), data=track2, alpha=0.5)
 
-# keep track B62Blue0 only for Scottish example 
-idx<-c("B62Blue0")
+last_plot() + theme(legend.position="none")
 
-# remove the other tracks 
-df<-df[df$ID %in% idx,] 
-df<-droplevels(df)
+last_plot() + labs(x = "longitude", y = "latitude")
 
-# rename column headers 
-names(df)[names(df) == 'x'] <- 'lon'
-names(df)[names(df) == 'y'] <- 'lat'
+last_plot() + scale_fill_etopo()
 
-# match it to example data, we retain viterbi so we can use it as a colour code 
-myvars <- c("lon", "lat","viterbi")
-df <- df[myvars]
-head(df)
 
-# Download bathymetric data and save on disk - Irish 
-batIre <- getNOAA.bathy(-16,-5.5, 51, 56, res = 1, keep = TRUE)
 
-# Download bathymetric data and save on disk - Scottish 
-batScot <- getNOAA.bathy(-8,6, 56, 62, res = 1, keep = TRUE)
 
-# Select colours
-blues <- c("lightsteelblue4", "lightsteelblue3", "lightsteelblue2", "lightsteelblue1")
-greys <- c(grey(0.6), grey(0.93), grey(0.99))
 
-## Bathymetric map with gps tracks - Irish
-plot(batIre, land = TRUE, image = TRUE, lwd = 0.2, bpal = list(c(min(batIre,na.rm=TRUE), 0, blues), c(0, max(batIre, na.rm=TRUE), greys)), ylim=c(51,56))
-plot(batIre, deep = 0, shallow = 0, step = 0, lwd = 0.8, add = TRUE)
 
-## Bathymetric map with gps tracks - Scottish 
-plot(batScot, land = TRUE, image = TRUE, lwd = 0.2, bpal = list(c(min(batScot,na.rm=TRUE), 0, blues), c(0, max(batScot, na.rm=TRUE), greys)), xlim=c(-4,1), ylim=c(58,62))
-plot(batScot, deep = 0, shallow = 0, step = 0, lwd = 0.8, add = TRUE)
-
-points(df[df$viterbi=="2",], col = "lightskyblue" ,pch = 16)
-points(df[df$viterbi=="3",], col = "seagreen3",pch = 16)
-points(df[df$viterbi=="1",], col = "goldenrod3",pch = 16)
-# points(df, col = "red",pch = 16)
-
-#lines(df[df$viterbi=="1",], col = "goldenrod3",lwd = 1.5)
-#lines(df[df$viterbi=="2",], col = "lightskyblue" ,lwd = 1.5)
-#lines(df[df$viterbi=="3",], col = "seagreen3",lwd = 1.5)
-
-legend("topleft", legend = c("state 1", "state 2", "state 3"), col = c("goldenrod3", "lightskyblue", "seagreen3"), pch = 16, pt.cex = 0.5, bg="white")
-
-legend("topleft", legend = c("Resting", "Transiting", "Foraging"), col = c("goldenrod3", "lightskyblue", "seagreen3"), pch = 16, pt.cex = 0.5, bg="white")

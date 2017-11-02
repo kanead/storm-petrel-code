@@ -4,6 +4,8 @@
 # clean everything first
 rm(list=ls())
 library(momentuHMM)
+library(dplyr)
+
 setwd("C:\\Users\\akane\\Desktop\\Science\\Manuscripts\\Storm Petrels\\Tracking Data\\crawl SP-Movebank")
 stormData <- read.csv("crawl SP 5 day chloro.csv",header = T , sep = ",")
 head(stormData)
@@ -199,6 +201,11 @@ hr <- kernel.area(kud, percent = 95)
 hr
 image(kud)
 
+# calculate MCP 
+cp <- mcp(sp_df, percent=95, unout = "km2")
+plot(sp_df, add=TRUE)
+cp
+
 # subset the data for state 2 alone 
 sp_df2 <- newdata[newdata$states ==2, ]
 sp_df2<-data.frame(sp_df2)
@@ -209,3 +216,53 @@ kud2 <- kernelUD(sp_df2, grid = 200, same4all=TRUE)
 hr2 <- kernel.area(kud2, percent = 95)
 hr2
 image(kud2)
+
+# calculate MCP 
+cp2 <- mcp(sp_df2, percent=95, unout = "km2")
+plot(sp_df2, add=TRUE)
+cp2
+
+# is the state 2 area (95% MCP) smaller than the stage 1?
+cp$area-cp2$area
+########################################################################
+# Plot a track using the states to color code 
+########################################################################
+plotdata <- newdata[newdata$ID == "B62Blue0", ]
+plotdata<-droplevels(plotdata)
+head(plotdata)
+# match it to example data
+myvars <- c("lon", "lat","states")
+plotdata <- plotdata[myvars]
+head(plotdata)
+library(mapproj)
+# Download bathymetric data and save on disk  
+batScot <- getNOAA.bathy(-4,2, 58, 61, res = 1, keep = TRUE)
+
+# Select colours
+blues <- c("lightsteelblue4", "lightsteelblue3", "lightsteelblue2", "lightsteelblue1")
+greys <- c(grey(0.6), grey(0.93), grey(0.99))
+
+plot(batScot, land = TRUE, image = TRUE, lwd = 0.2, bpal = list(c(min(batScot,na.rm=TRUE), 0, blues), c(0, max(batScot, na.rm=TRUE), greys)),xlim=c(-4,2), ylim=c(58,61))
+plot(batScot, deep = 0, shallow = 0, step = 0, lwd = 0.8, add = TRUE)
+
+color_pallete_function <- colorRampPalette(
+  colors = c("#DAA520", "#87CEFA", "#006400"),
+  space = "Lab" # Option used when colors do not represent a quantitative scale
+)
+
+autoplot(batScot, geom=c("r", "c")) +
+  scale_fill_gradient2(low="dodgerblue4", mid="gainsboro", high="darkgreen")
+# p1$plot + geom_line(data = track1, mapping = aes_string(x='lon', y='lat'), inherit.aes = F)
+
+last_plot() + geom_point(aes(x=lon, y=lat, colour=factor(states)), data=plotdata, alpha=1, size =2)
+
+last_plot() + theme(legend.position="none")
+
+last_plot() + labs(x = "longitude", y = "latitude")
+
+last_plot() + scale_fill_etopo()
+
+last_plot()  + scale_color_manual(values=c("#DAA520", "#87CEFA", "#006400"))
+
+#last_plot()  +  legend("topleft", legend = c("Transiting", "Foraging", "Resting"), 
+#                       col = c("#DAA520", "#87CEFA", "#006400"), pch = 16, pt.cex = 0.5, bg="white")
