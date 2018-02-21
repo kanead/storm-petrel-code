@@ -39,10 +39,7 @@ irishdata<-irishdata[irishdata$lat < 54.5, ]
 scottishdata <- data[data$location=="scotland" , ]
 scottishdata<-droplevels(scottishdata)
 
-# combine data back together again
-# stormData<-rbind(scottishdata,irishdata)
-# or select one country's tracks 
-# stormData<-irishdata[irishdata$ID==908,]
+# select tracks from one country 
 # stormData<-scottishdata
  stormData<-irishdata
 
@@ -57,22 +54,13 @@ stormData$tdiff <- unlist(tapply(stormData$time, INDEX = stormData$ID,
                           FUN = function(x) c(0, `units<-`(diff(x), "mins"))))
 
 
-# calculate the max time gap by factor level 
-#maxtdiff<- tapply(stormData$tdiff, INDEX = stormData$ID,max)
-#maxtdiff
-#idx <- names(maxtdiff)[maxtdiff < 120]
-#stormData<-stormData[stormData$ID %in% idx,]
-#stormData<-droplevels(stormData)
-#maxtdiff<- tapply(stormData$tdiff, INDEX = stormData$ID,max)
-#maxtdiff
-
 # split tracks that have big time gaps by first calculating the time difference
 setDT(stormData)[ , ID2 := paste0(ID, cumsum(c(0, diff(time)) > 120)), by = ID]
 stormData<-data.frame(stormData)
 stormData$ID2<-factor(stormData$ID2)
 levels(stormData$ID2)
 head(stormData)
-# check out the length of the tracks that have been broken up if they exceed 2.5 hours at any point 
+# check out the length of the tracks that have been broken up if they exceed 2 hours at any point 
 tapply(stormData$ID2, INDEX = stormData$ID2,length)
 # drop the birds that have fewer than x relocations 
 stormData <- stormData[!(as.numeric(stormData$ID2) %in% which(table(stormData$ID2)<10)),]
@@ -81,11 +69,6 @@ tapply(stormData$ID2, INDEX = stormData$ID2,length)
 head(stormData)
 maxtdiff<- tapply(stormData$tdiff, INDEX = stormData$ID2,max)
 maxtdiff
-#stormData <- subset(stormData, tdiff < 120)
-#stormData <- droplevels(stormData)
-# look at the new max time gap by factor level 
-#maxtdiff<- tapply(stormData$tdiff, INDEX = stormData$ID,max)
-#maxtdiff
 stormData <- stormData[,c(2,1,3,5,7)]
 names(stormData)[names(stormData) == 'ID2'] <- 'ID'
 
@@ -119,7 +102,11 @@ crwOut <- crawlWrap(obsData=stormData, timeStep="30 mins", initial.state=inits,
                     theta=c(10,-4), fixPar=c(NA,NA), retryFits = 10)
 
 IrishCRW <- momentuHMM::prepData(data=crwOut)
+# ScottishCRW <- momentuHMM::prepData(data=crwOut)
 
+
+# create extra data points to use for downloading environmental covariates at different times
+# in order to get averages 
 IrishCRW$datePlusOne<-IrishCRW$time + days(1)
 IrishCRW$dateMinusOne<-IrishCRW$time - days(1)
 

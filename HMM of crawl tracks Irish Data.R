@@ -7,6 +7,7 @@ library(momentuHMM)
 library(dplyr)
 library(marmap)
 library(ggplot2)
+library(sp)
 
 setwd("C:\\Users\\akane\\Desktop\\Science\\Manuscripts\\Storm Petrels\\Tracking Data\\crawl SP-Movebank")
 stormData <- read.csv("crawl SP Irish.csv",header = T , sep = ",")
