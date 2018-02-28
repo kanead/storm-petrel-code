@@ -183,7 +183,7 @@ predData <- foreach(i = 1:length(model_fits), .combine = rbind) %dopar% {
   
   model_fits[[i]]$data$DateTime <- lubridate::with_tz(
     model_fits[[i]]$data$DateTime,"GMT")
-  predTimes <- seq(min(model_fits[[i]]$data$DateTime), max(model_fits[[i]]$data$DateTime), 1500)
+  predTimes <- seq(min(model_fits[[i]]$data$DateTime), max(model_fits[[i]]$data$DateTime), 1800)
   tmp = crawl::crwPredict(model_fits[[i]], predTime=predTimes)
 }
 #stopImplicitCluster()
@@ -239,7 +239,7 @@ p1 <- ggplot(data=predData,aes(x=mu.x,y=mu.y)) +
   ylab("northing (meters)") + theme_map()
 p1
 #############################################################################
-# Make sure its interpolated to 25 mins, CRAWL doesn't make it so  
+# Make sure its interpolated to 30 mins, CRAWL doesn't make it so  
 #############################################################################
 head(predData)
 predData<-predData[,c("mu.x","mu.y","predTimes","newID")]
@@ -251,7 +251,7 @@ head(predData)
 # create a trajectory object using adehabitatLT
 library(adehabitatLT)
 tr<-as.ltraj(data.frame(X=predData$longitude,Y=predData$latitude),date=predData$DateTime,id=predData$newID,typeII=T) #create trajectory
-tstep<-1500 #time step we want for the interpolation, in seconds, 1500 secs = 25 mins  
+tstep<-1800 #time step we want for the interpolation, in seconds, 1800 secs = 30 mins  
 newtr<-redisltraj(tr, u=tstep, type = "time")
 head(newtr)
 head(newtr[[1]])
@@ -268,15 +268,16 @@ tail(mydata)
 #############################################################################
 # Export the dataframe for use in Movebank 
 #############################################################################
-write.csv(mydata,file = "Mousa25minCrawl.csv",row.names = F)
+write.csv(mydata,file = "Mousa30minCrawl.csv",row.names = F)
 #############################################################################
 # Read in data with Movebank Covariates 
 #############################################################################
-mydata<-read.csv("PetrelsCrawlScotland.csv",header = T, sep = ",")
+setwd("C:/Users/akane/Desktop/Science/Manuscripts/Storm Petrels/Tracking Data")
+mydata<-read.csv("petrelsCrawlScotland30Mins.csv",header = T, sep = ",")
 head(mydata)
 mydata<-mydata[,c("location.long","location.lat","timestamp","individual.local.identifier",
                   "MODIS.Ocean.Aqua.OceanColor.4km.Monthly.Chlorophyll.A","ETOPO1.Elevation",
-                  "MODIS.Ocean.Aqua.OceanColor.4km.8d.Chlorophyll.A")]
+                  "MODIS.Ocean.Aqua.OceanColor.4km.8d.Chlorophyll.A","NASA.Distance.to.Coast")]
 names(mydata)[names(mydata) == 'location.long'] <- 'lon'
 names(mydata)[names(mydata) == 'location.lat'] <- 'lat'
 names(mydata)[names(mydata) == 'timestamp'] <- 'DateTime'
@@ -284,6 +285,7 @@ names(mydata)[names(mydata) == 'individual.local.identifier'] <- 'ID'
 names(mydata)[names(mydata) == 'MODIS.Ocean.Aqua.OceanColor.4km.8d.Chlorophyll.A'] <- 'eightDayChloro'
 names(mydata)[names(mydata) == 'MODIS.Ocean.Aqua.OceanColor.4km.Monthly.Chlorophyll.A'] <- 'chloroMonth'
 names(mydata)[names(mydata) == 'ETOPO1.Elevation'] <- 'bath' 
+names(mydata)[names(mydata) == 'NASA.Distance.to.Coast'] <- 'coast' 
 head(mydata)
 sum(is.na(mydata$eightDayChloro))
 sum(is.na(mydata$chloroMonth))
@@ -302,11 +304,14 @@ mydata$y <- attr(utmcoord,"coords")[,2]
 #############################################################################
 head(mydata)
 plot(mydata$x , mydata$y)
-mydata<-mydata[,c("ID","x","y","chloroMonth","bath","eightDayChloro")]
+mydata<-mydata[,c("ID","x","y","chloroMonth","bath","eightDayChloro","coast")]
 # delete the rows with NAs for 8 day chloro if needed 
 which(is.na(mydata$eightDayChloro))
-mydata <- mydata[-c(94:100), ]
+mydata <- mydata[-c(438:442), ]
 sum(is.na(mydata$eightDayChloro))
+# delete the row with the huge value for chlorophyll
+mydata<-head(mydata,-3)
+hist(mydata$eightDayChloro)
 mydata <- momentuHMM::prepData(mydata)
 #############################################################################
 # fit HMM
@@ -418,7 +423,87 @@ m8 <- momentuHMM::fitHMM(data = mydata, nbStates = 3, dist = dist, Par0 = Par0_m
                          estAngleMean = list(angle=FALSE), stateNames = stateNames,formula = formula, retryFits = 1)
 m8
 # plot(m8)
+
+###################################################################################
+# 4 state model no covariate 
+###################################################################################
+stateNames <- c("transiting","foraging","scoping","resting")
+# distributions for observation processes
+dist = list(step = "gamma", angle = "vm")
+# initial parameters
+Par0_m3 <- list(step=c(20000,10000,5000,1000,1000,5000,500,500),angle=c(10,5,5,1))
+# fit model
+m9 <- momentuHMM::fitHMM(data = mydata, nbStates = 4, dist = dist, Par0 = Par0_m3,
+                          estAngleMean = list(angle=FALSE), stateNames = stateNames,retryFits = 1)
+m9
+# plot(m9)
+###################################################################################
+# 4 state model monthly chloro covariate 
+###################################################################################
+stateNames <- c("transiting","foraging","scoping","resting")
+# distributions for observation processes
+dist = list(step = "gamma", angle = "vm")
+# formula
+formula <- ~ chloroMonth 
+# initial parameters
+Par0_m3 <- list(step=c(20000,10000,5000,1000,1000,5000,500,500),angle=c(10,5,5,1))
+# fit model
+m10 <- momentuHMM::fitHMM(data = mydata, nbStates = 4, dist = dist, Par0 = Par0_m3,
+                         estAngleMean = list(angle=FALSE), stateNames = stateNames,formula = formula, retryFits = 1)
+m10
+# plot(10)
+###################################################################################
+# 4 state model 8 day chloro covariate 
+###################################################################################
+stateNames <- c("transiting","foraging","scoping","resting")
+# distributions for observation processes
+dist = list(step = "gamma", angle = "vm")
+# formula
+formula <- ~ eightDayChloro 
+# initial parameters
+Par0_m3 <- list(step=c(20000,10000,5000,1000,1000,5000,500,500),angle=c(10,5,5,1))
+# fit model
+m11 <- momentuHMM::fitHMM(data = mydata, nbStates = 4, dist = dist, Par0 = Par0_m3,
+                          estAngleMean = list(angle=FALSE), stateNames = stateNames,formula = formula, retryFits = 1)
+m11
+# plot(m11)
+###################################################################################
+# 4 state model bathymetry covariate 
+###################################################################################
+stateNames <- c("transiting","foraging","scoping","resting")
+# distributions for observation processes
+dist = list(step = "gamma", angle = "vm")
+# formula
+formula <- ~ bath 
+# initial parameters
+Par0_m3 <- list(step=c(20000,10000,5000,1000,1000,5000,500,500),angle=c(10,5,5,1))
+# fit model
+m12 <- momentuHMM::fitHMM(data = mydata, nbStates = 4, dist = dist, Par0 = Par0_m3,
+                          estAngleMean = list(angle=FALSE), stateNames = stateNames,formula = formula, retryFits = 1)
+m12
+# plot(m12)
+
+
+
+
+###################################################################################
+# 3 state model 8 day chloro covariate 
+###################################################################################
+stateNames <- c("transiting", "foraging", "resting")
+# distributions for observation processes
+dist = list(step = "gamma", angle = "vm")
+# formula
+formula <- ~ coast 
+# initial parameters
+Par0_m3 <- list(step=c(20000,10000,100,1000,5000,500),angle=c(10,5,1))
+# fit model
+m13 <- momentuHMM::fitHMM(data = mydata, nbStates = 3, dist = dist, Par0 = Par0_m3,
+                         estAngleMean = list(angle=FALSE), stateNames = stateNames,formula = formula, retryFits = 1)
+m13
+# plot(m13)
+
+
 ###################################################################################
 # Compare models using AIC
 ###################################################################################
-AIC(m1,m2,m3,m4,m5,m6,m7,m8)
+AIC(m1,m2,m3,m4,m5,m6,m7,m8,m9,m10,m11,m12)
